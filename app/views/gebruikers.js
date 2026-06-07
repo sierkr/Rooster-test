@@ -690,6 +690,7 @@ window.openWisselSheet = function(slotId) {
       <div class="form-field" style="flex: 1;"><label class="form-label">Vakantierecht</label><input type="number" class="input" id="wsVr" value="40" min="0" max="100" step="1"></div>
     </div>
     <div class="form-field"><label class="form-label">Ingangsdatum</label><input type="date" class="input" id="wsDatum" value="${defDatum}"></div>
+    <div class="form-field"><label class="form-label">In dienst / senioriteit <span class="muted" style="font-weight:400;">(bepaalt kolomvolgorde, oudste = links)</span></label><input type="date" class="input" id="wsInDienst" value="${defDatum}"></div>
     <div style="display: flex; gap: 8px; margin-top: 1rem;">
       <button class="btn" style="flex: 1;" onclick="window.closeSheet()">Annuleren</button>
       <button class="btn btn-primary" style="flex: 1;" onclick="window.opslaanWissel('${slotId}')">Doorvoeren</button>
@@ -705,6 +706,7 @@ window.opslaanWissel = async function(slotId) {
   const pf = Math.max(10, Math.min(100, parseInt(document.getElementById('wsPf').value, 10) || 100)) / 100;
   const vr = Math.max(0, Math.min(100, parseInt(document.getElementById('wsVr').value, 10) || 40));
   const datum = document.getElementById('wsDatum').value;
+  const inDienst = document.getElementById('wsInDienst').value || datum;
   if (!code || !achternaam) { alert('Code en achternaam zijn verplicht.'); return; }
   if (!datum) { alert('Kies een ingangsdatum.'); return; }
 
@@ -718,6 +720,7 @@ window.opslaanWissel = async function(slotId) {
       code: stoel.code || slotId,
       vakantierecht: typeof stoel.vakantierecht === 'number' ? stoel.vakantierecht : 40,
       parttime_factor: typeof stoel.parttime_factor === 'number' ? stoel.parttime_factor : 1,
+      in_dienst: stoel.in_dienst || null,
       van: null, tot: null,
     });
   }
@@ -732,6 +735,7 @@ window.opslaanWissel = async function(slotId) {
     voornaam, achternaam, code,
     vakantierecht: vr,
     parttime_factor: pf,
+    in_dienst: inDienst || null,
     van: datum,
     tot: null,
   });
@@ -742,6 +746,7 @@ window.opslaanWissel = async function(slotId) {
       code, voornaam, achternaam,
       vakantierecht: vr,
       parttime_factor: pf,
+      in_dienst: inDienst || null,
       actief: true,
       isSlot: SLOTS.includes(slotId),
       bezetting_historie: nieuweHist,
@@ -799,6 +804,9 @@ window.openMaakVastSheet = function(wSlotId) {
     <div class="form-field"><label class="form-label">Ingangsdatum</label>
       <input type="date" class="input" id="mvDatum" value="${defDatum}" onchange="window.mvUpdatePreview('${wSlotId}')">
     </div>
+    <div class="form-field"><label class="form-label">In dienst / senioriteit <span class="muted" style="font-weight:400;">(bepaalt kolomvolgorde, oudste = links)</span></label>
+      <input type="date" class="input" id="mvInDienst" value="${huidig?.in_dienst || defDatum}">
+    </div>
     <div id="mvPreview" class="form-info" style="font-size: 12px; margin-bottom: 12px;">Tik <b>Preview</b> om te zien wat er verschuift.</div>
     <div style="display: flex; gap: 8px;">
       <button class="btn" style="flex: 1;" onclick="window.mvUpdatePreview('${wSlotId}')">Preview</button>
@@ -832,6 +840,7 @@ window.mvUpdatePreview = function(wSlotId) {
 window.maakVastDoorvoeren = async function(wSlotId) {
   const naarSlot = document.getElementById('mvSlot').value;
   const datum = document.getElementById('mvDatum').value;
+  const inDienst = document.getElementById('mvInDienst').value || datum;
   if (!datum || !naarSlot) { alert('Kies stoel en datum.'); return; }
   if (!VASTE_RAD_IDS.includes(naarSlot)) { alert('Ongeldige doel-stoel.'); return; }
   if (!confirm(`Maak ${wSlotId} vast in ${naarSlot} per ${formatDatum(datum, 'kort')}?\n\nToewijzingen, vakantie-V, diensten, wensen en gebruikerskoppeling vanaf die datum verhuizen mee. Niet ongedaan te maken zonder handmatig terugdraaien.`)) return;
@@ -840,7 +849,7 @@ window.maakVastDoorvoeren = async function(wSlotId) {
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
 
   try {
-    await migreerBezetting(wSlotId, naarSlot, datum);
+    await migreerBezetting(wSlotId, naarSlot, datum, inDienst);
     closeSheet();
     alert(`${wSlotId} → ${naarSlot} doorgevoerd per ${formatDatum(datum, 'kort')}.`);
     renderGebView();
@@ -852,7 +861,7 @@ window.maakVastDoorvoeren = async function(wSlotId) {
 
 // Doet de daadwerkelijke batch-migratie. Schrijft in <500-doc batches om
 // firestore-limieten te respecteren.
-async function migreerBezetting(vanSlot, naarSlot, datum) {
+async function migreerBezetting(vanSlot, naarSlot, datum, inDienst) {
   const dagVoor = plusDagen(datum, -1);
 
   // 1. Bezetting van vanSlot ophalen
@@ -896,7 +905,7 @@ async function migreerBezetting(vanSlot, naarSlot, datum) {
     code: persoon.code || vanSlot,
     vakantierecht: typeof persoon.vakantierecht === 'number' ? persoon.vakantierecht : 40,
     parttime_factor: typeof persoon.parttime_factor === 'number' ? persoon.parttime_factor : 1,
-    in_dienst: persoon.in_dienst || null,
+    in_dienst: inDienst || persoon.in_dienst || null,
     van: datum, tot: null,
   });
 
@@ -909,7 +918,7 @@ async function migreerBezetting(vanSlot, naarSlot, datum) {
     achternaam: persoon.achternaam || '',
     vakantierecht: persoon.vakantierecht ?? 40,
     parttime_factor: persoon.parttime_factor ?? 1,
-    in_dienst: persoon.in_dienst || null,
+    in_dienst: inDienst || persoon.in_dienst || null,
     bezetting_historie: naarHistNieuw,
   }, { merge: true });
   batch1.set(doc(db, 'radiologen', vanSlot), {

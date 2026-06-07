@@ -1,25 +1,22 @@
-Rooster v3.27.98 — Release notes
+Rooster v3.27.99 — Release notes
 ==================================
 
-KOLOMVOLGORDE OP ANCIËNNITEIT
+HISTORISCH CORRECTE KOLOMVOLGORDE
 -----------------------------
-De volgorde van de vaste radiologen-kolommen wordt nu bepaald door de
-in-dienst datum van wie er op die datum op de stoel zit (oudste = links).
-Een nieuwe, juniore vervanger komt daardoor automatisch rechts in het
-overzicht; bij vertrek van een seniore maat schuift de rest een plek op.
+De kolomvolgorde klopt nu ook als je terugbladert in de tijd. Per week
+worden de kolommen gesorteerd op de senioriteit (in-dienst datum) van wie er
+in díé week op de stoel zat — niet op de huidige bezetter. Een voorganger
+houdt dus zijn eigen plek in oude weken; een nieuwe juniore vervanger staat
+vanaf zijn ingangsdatum rechts.
 
 WAT IS NIEUW
 -----------------------------
-- Gebruikers-tab: datumveld "In dienst" per vaste radioloog, links van de
-  Parttime-kolom. Voorgevuld met een placeholder die de huidige volgorde
-  behoudt; pas de data aan naar de echte anciënniteitsdata en sla op.
-- De kolomvolgorde in Overzicht, Afdeling, Dienst, Vakantie, Radioloog,
-  Jaaroverzicht en Activiteit volgt deze datums.
-- Bij een stoelwissel ("maak vast") verhuist de in-dienst datum mee met de
-  persoon.
+- Senioriteit hoort nu bij de persoon (de bezetting-entry), niet bij de stoel.
+- Wissel- en maak-vast-schermen hebben een apart veld "In dienst / senioriteit",
+  los van de ingangsdatum. Daarmee krijgt elke nieuwe bezetter zijn eigen
+  senioriteit-datum.
 
-OVERGANG
+LET OP
 -----------------------------
-Zolang niet alle vaste stoelen een in-dienst datum hebben, blijft de
-oorspronkelijke vaste volgorde behouden (geen half-gesorteerde weergave).
-Vul de 8 datums in de Gebruikers-tab in en sla op om over te schakelen.
+Senioriteit (kolomvolgorde) en ingangsdatum (vanaf wanneer iemand op de stoel
+zit) zijn nu twee aparte datums. Vul bij een wissel beide bewust in.

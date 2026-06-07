@@ -105,7 +105,7 @@ export function bezettingOpDatum(slotId, datum) {
       code: entry.code || stoel.code || slotId,
       vakantierecht: typeof entry.vakantierecht === 'number' ? entry.vakantierecht : (stoel.vakantierecht ?? 40),
       parttime_factor: typeof entry.parttime_factor === 'number' ? entry.parttime_factor : (stoel.parttime_factor ?? 1),
-      in_dienst: entry.in_dienst || stoel.in_dienst || null,
+      in_dienst: entry.in_dienst || null,
       van: entry.van || null,
       tot: entry.tot || null,
     };

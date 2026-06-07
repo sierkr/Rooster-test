@@ -1,3 +1,18 @@
+## v3.27.99 — Historisch correcte kolomvolgorde (senioriteit per bezetter)
+
+### Wijzigingen
+- **helpers.js** (`bezettingOpDatum`): een afgesloten bezetting-entry gebruikt nu uitsluitend zijn **eigen** `in_dienst` (geen terugval meer op de stoel-datum). Daardoor klopt de kolomvolgorde ook als je terugbladert: oude weken sorteren op de senioriteit van wie er tóén zat, nieuwe weken op de huidige bezetter.
+- **Wissel-sheet** (`opslaanWissel`): nieuw veld "In dienst / senioriteit" voor de nieuwe persoon; wordt op diens bezetting-entry vastgelegd.
+- **Maak-vast-sheet** (`maakVastDoorvoeren` / `migreerBezetting`): nieuw veld "In dienst / senioriteit", los van de ingangsdatum. De nieuwe (juniore) vervanger krijgt zo zijn eigen senioriteit-datum mee i.p.v. de stoelpositie van de voorganger te erven.
+- Versie 3.27.98 → 3.27.99 (config.js, sw.js).
+
+### Model (verduidelijking)
+- `van`/`tot` op een bezetting-entry = wie er op welke datum op de stoel zit (historie).
+- `in_dienst` op de bezetting-entry = senioriteit van die persoon; bepaalt de kolomvolgorde (oudste = links).
+- Beide staan los van elkaar: senioriteit ≠ ingangsdatum op de stoel.
+
+---
+
 ## v3.27.98 — Kolomvolgorde op anciënniteit (in-dienst datum)
 
 ### Wijzigingen
