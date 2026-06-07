@@ -7,7 +7,7 @@ import { state, VASTE_RAD_IDS } from './state.js';
 import {
   vandaagIso, mandagVanIso, plusDagen, radiologenMap, vertalFirebaseFout,
   magBeheerLezen, magRegelsBeheren, magGebruikersBeheren, magAlleWensenZien, magWijzigen,
-  magVakantieZien, valideerWachtwoord,
+  magVakantieZien, valideerWachtwoord, isVasteStoel,
 } from './helpers.js';
 import { openSheet, closeSheet } from './sheets.js';
 
@@ -274,7 +274,7 @@ function luisterNaarData() {
   state.unsubscribers.push(onSnapshot(collection(db, 'radiologen'), (snap) => {
     state.radiologen = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (!state.huidigeRadId) {
-      state.huidigeRadId = state.profiel?.radioloog_id && VASTE_RAD_IDS.includes(state.profiel.radioloog_id)
+      state.huidigeRadId = state.profiel?.radioloog_id && isVasteStoel(state.profiel.radioloog_id)
         ? state.profiel.radioloog_id
         : VASTE_RAD_IDS[0];
     }

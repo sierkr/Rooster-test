@@ -3,8 +3,9 @@ import { collection, doc, getDocs, query, where, setDoc, updateDoc, writeBatch, 
 import { db, fnGebruikerAanmaken, fnGebruikerVerwijderen, fnGebruikerResetWachtwoord } from '../firebase-init.js';
 import { state, SLOTS, VASTE_RAD_IDS, VASTE_BEHEERDER_EMAIL } from '../state.js';
 import {
-  vasteRads, actieveInvallers, radiologenMap, parttimeFactor, defaultPermissies,
+  vasteRads, vasteRadsOpDatum, actieveInvallers, radiologenMap, parttimeFactor, defaultPermissies,
   magGebruikersBeheren, genereerWachtwoord, bezettingOpDatum, vandaagIso, plusDagen, formatDatum,
+  alleVasteStoelIds, isVasteStoel,
 } from '../helpers.js';
 import { STANDAARD_WACHTWOORD } from '../helpers.js';
 import { openSheet, closeSheet } from '../sheets.js';
@@ -66,7 +67,7 @@ export async function renderGebView() {
       <div class="summary-label" style="margin-bottom: 6px;">Vaste radiologen — parttime &amp; vakantierecht</div>
       <div class="card">
         <p class="muted" style="margin: 0 0 10px;">Parttime: percentage van fulltime (default 100%). Vakantierecht: aantal V-dagen per jaar (default 40). Tik <b>Wissel</b> om een persoon op de stoel te wisselen vanaf een datum.</p>
-        <div style="display: grid; grid-template-columns: 50px 1fr 120px 56px 56px 70px; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 11px; font-weight: 600; color: #5f5e5a;">
+        <div style="display: grid; grid-template-columns: 50px 1fr 120px 56px 56px 120px; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 11px; font-weight: 600; color: #5f5e5a;">
           <div>Code</div>
           <div>Naam</div>
           <div style="text-align: center;">In dienst</div>
@@ -84,10 +85,10 @@ export async function renderGebView() {
           // In-dienst (anciënniteit) bepaalt de kolomvolgorde (oudste = links).
           // Placeholder behoudt de huidige vaste volgorde tot je echte data invult.
           const idx = VASTE_RAD_IDS.indexOf(r.id);
-          const indienstPlaceholder = `${2000 + (idx < 0 ? 0 : idx)}-01-01`;
+          const indienstPlaceholder = idx < 0 ? '9999-01-01' : `${2000 + idx}-01-01`;
           const indienstWaarde = open?.in_dienst || stoel?.in_dienst || indienstPlaceholder;
           return `
-            <div style="display: grid; grid-template-columns: 50px 1fr 120px 56px 56px 70px; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
+            <div style="display: grid; grid-template-columns: 50px 1fr 120px 56px 56px 120px; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
               <div style="font-weight: 500;">${r.code}</div>
               <div style="min-width: 0;">
                 <div class="muted" style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.achternaam || ''}</div>
@@ -102,7 +103,10 @@ export async function renderGebView() {
               <div>
                 <input type="number" class="input" id="vr_${r.id}" value="${vrecht}" min="0" max="100" step="1" oninput="window.gebMarkDirty('vast')" style="padding: 6px 4px; font-size: 13px; text-align: right; width: 100%;">
               </div>
-              <button class="btn" style="font-size: 11px; padding: 6px 4px;" onclick="window.openWisselSheet('${r.id}')">Wissel</button>
+              <div style="display: flex; gap: 4px;">
+                <button class="btn" style="font-size: 11px; padding: 6px 4px; flex: 1;" onclick="window.openWisselSheet('${r.id}')">Wissel</button>
+                <button class="btn" style="font-size: 11px; padding: 6px 4px; flex: 1;" onclick="window.openVertrekSheet('${r.id}')" title="Stoel laten vertrekken per datum">Vertrek</button>
+              </div>
             </div>
           `;
         }).join('')}
@@ -795,10 +799,9 @@ window.openMaakVastSheet = function(wSlotId) {
 
   const huidig = bezettingOpDatum(wSlotId, vandaagIso());
   const defDatum = vandaagIso();
-  const opties = VASTE_RAD_IDS.map(id => {
-    const b = bezettingOpDatum(id, vandaagIso());
-    return `<option value="${id}">${id} — ${b ? `${b.code} · ${b.achternaam}` : '(leeg)'}</option>`;
-  }).join('');
+  const opties = vasteRadsOpDatum(vandaagIso()).map(r => {
+    return `<option value="${r.id}">${r.code || r.id} · ${r.achternaam || ''} (vervangen)</option>`;
+  }).join('') + `<option value="__NIEUW__">➕ Nieuwe stoel (kolom erbij)</option>`;
 
   document.getElementById('sheetTitle').textContent = `Maak ${huidig?.code || wSlotId} vast`;
   document.getElementById('sheetSub').textContent = `${huidig?.achternaam || ''} verhuist van ${wSlotId} naar een vaste stoel`;
@@ -847,24 +850,107 @@ window.mvUpdatePreview = function(wSlotId) {
 };
 
 window.maakVastDoorvoeren = async function(wSlotId) {
-  const naarSlot = document.getElementById('mvSlot').value;
+  let naarSlot = document.getElementById('mvSlot').value;
   const datum = document.getElementById('mvDatum').value;
   const inDienst = document.getElementById('mvInDienst').value || datum;
   if (!datum || !naarSlot) { alert('Kies stoel en datum.'); return; }
-  if (!VASTE_RAD_IDS.includes(naarSlot)) { alert('Ongeldige doel-stoel.'); return; }
-  if (!confirm(`Maak ${wSlotId} vast in ${naarSlot} per ${formatDatum(datum, 'kort')}?\n\nToewijzingen, vakantie-V, diensten, wensen en gebruikerskoppeling vanaf die datum verhuizen mee. Niet ongedaan te maken zonder handmatig terugdraaien.`)) return;
+
+  const nieuweStoel = (naarSlot === '__NIEUW__');
+  if (!nieuweStoel && !isVasteStoel(naarSlot)) { alert('Ongeldige doel-stoel.'); return; }
+
+  // Max 12 gelijktijdig actieve vaste stoelen (op de ingangsdatum).
+  if (nieuweStoel && vasteRadsOpDatum(datum).length >= 12) {
+    alert('Er zijn al 12 actieve stoelen op die datum — dat is het maximum. Hef eerst een stoel op (Vertrek).');
+    return;
+  }
+
+  const bevestiging = nieuweStoel
+    ? `Maak ${wSlotId} vast op een NIEUWE stoel per ${formatDatum(datum, 'kort')}?\n\nEr komt een kolom bij. Toewijzingen, vakantie-V, diensten, wensen en gebruikerskoppeling vanaf die datum verhuizen mee.`
+    : `Maak ${wSlotId} vast in ${naarSlot} per ${formatDatum(datum, 'kort')}?\n\nToewijzingen, vakantie-V, diensten, wensen en gebruikerskoppeling vanaf die datum verhuizen mee. Niet ongedaan te maken zonder handmatig terugdraaien.`;
+  if (!confirm(bevestiging)) return;
 
   const btn = document.querySelector('#sheetBody .btn-primary');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
 
   try {
+    if (nieuweStoel) {
+      // Vers, uniek stoel-id (nooit hergebruikt). Eerst het lege stoel-document
+      // met de vaste-stoel-markering aanmaken, daarna de persoon erop migreren.
+      naarSlot = 'VS' + Date.now().toString(36);
+      await setDoc(doc(db, 'radiologen', naarSlot), {
+        id: naarSlot, vaste_stoel: true, isSlot: false, type: 'radioloog',
+        actief: true, code: '', voornaam: '', achternaam: '', bezetting_historie: [],
+      }, { merge: true });
+    }
     await migreerBezetting(wSlotId, naarSlot, datum, inDienst);
     closeSheet();
-    alert(`${wSlotId} → ${naarSlot} doorgevoerd per ${formatDatum(datum, 'kort')}.`);
+    alert(nieuweStoel
+      ? `${wSlotId} → nieuwe stoel doorgevoerd per ${formatDatum(datum, 'kort')}.`
+      : `${wSlotId} → ${naarSlot} doorgevoerd per ${formatDatum(datum, 'kort')}.`);
     renderGebView();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Doorvoeren'; }
     alert('Migratie mislukt: ' + (e.message || e));
+  }
+};
+
+// ==== Vertrek: vaste stoel verdwijnt per datum =============================
+
+window.openVertrekSheet = function(slotId) {
+  const huidig = bezettingOpDatum(slotId, vandaagIso());
+  const defDatum = vandaagIso();
+  document.getElementById('sheetTitle').textContent = `Vertrek ${huidig?.code || slotId}`;
+  document.getElementById('sheetSub').textContent = 'De stoel verdwijnt vanaf de opgegeven datum';
+  document.getElementById('sheetBody').innerHTML = `
+    <div class="form-info" style="margin-bottom: 12px; font-size: 12px;">
+      <b>${huidig?.code || ''}</b> · ${huidig?.achternaam || ''} verlaat de stoel. Vanaf de vertrekdatum verdwijnt de kolom uit het overzicht; de historie van vóór die datum blijft zichtbaar.
+    </div>
+    <div class="form-field"><label class="form-label">Vertrekdatum <span class="muted" style="font-weight:400;">(vanaf deze dag is de stoel weg)</span></label>
+      <input type="date" class="input" id="vtDatum" value="${defDatum}">
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: 1rem;">
+      <button class="btn" style="flex: 1;" onclick="window.closeSheet()">Annuleren</button>
+      <button class="btn btn-primary" style="flex: 1;" onclick="window.vertrekDoorvoeren('${slotId}')">Doorvoeren</button>
+    </div>
+  `;
+  openSheet();
+};
+
+window.vertrekDoorvoeren = async function(slotId) {
+  const datum = document.getElementById('vtDatum').value;
+  if (!datum) { alert('Kies een vertrekdatum.'); return; }
+  const stoel = state.radiologen.find(r => r.id === slotId);
+  if (!stoel) { alert('Stoel niet gevonden.'); return; }
+  if (!confirm(`Laat stoel ${slotId} vertrekken per ${formatDatum(datum, 'kort')}?\n\nDe kolom verdwijnt vanaf die datum. De historie ervóór blijft behouden.`)) return;
+
+  // De bezetter is actief t/m de dag vóór de vertrekdatum.
+  const dagVoor = plusDagen(datum, -1);
+  const hist = Array.isArray(stoel.bezetting_historie) ? stoel.bezetting_historie.map(e => ({ ...e })) : [];
+  if (hist.length === 0) {
+    // Oud datamodel: maak een entry uit de top-level velden en sluit hem af.
+    hist.push({
+      voornaam: stoel.voornaam || '', achternaam: stoel.achternaam || '',
+      code: stoel.code || slotId,
+      vakantierecht: typeof stoel.vakantierecht === 'number' ? stoel.vakantierecht : 40,
+      parttime_factor: typeof stoel.parttime_factor === 'number' ? stoel.parttime_factor : 1,
+      in_dienst: stoel.in_dienst || null,
+      van: null, tot: dagVoor,
+    });
+  } else {
+    const open = hist.find(e => !e.tot);
+    if (open) open.tot = dagVoor;
+  }
+
+  const btn = document.querySelector('#sheetBody .btn-primary');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
+  try {
+    await setDoc(doc(db, 'radiologen', slotId), { bezetting_historie: hist }, { merge: true });
+    closeSheet();
+    alert(`Stoel ${slotId} vertrekt per ${formatDatum(datum, 'kort')}.`);
+    renderGebView();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Doorvoeren'; }
+    alert('Opslaan mislukt: ' + (e.message || e));
   }
 };
 

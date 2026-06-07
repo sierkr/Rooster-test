@@ -1,3 +1,20 @@
+## v3.27.102 — Flexibele vaste stoelen (toevoegen/opheffen, datum-correct)
+
+### Wijzigingen
+- **Aantal vaste stoelen is niet langer vast op 8.** Stoelen ontstaan en verdwijnen vanuit acties op personen:
+  - **Nieuwe stoel**: in "→ Vast" kun je nu kiezen tussen een **bestaande stoel** (vervangen) of een **nieuwe stoel** (kolom erbij). Een nieuwe stoel krijgt een vers, uniek intern id (nooit hergebruikt).
+  - **Vertrek**: per vaste radioloog een knop **Vertrek** met een vertrekdatum. Vanaf die datum verdwijnt de kolom; de historie ervóór blijft zichtbaar.
+- **Maximum 12** gelijktijdig actieve vaste stoelen (gecontroleerd bij toevoegen).
+- **helpers.js**: `vasteRadsOpDatum` toont per datum alleen stoelen met een actieve bezetter (leeg = geen kolom); nieuwe helpers `alleVasteStoelIds()` en `isVasteStoel()`. Het kolom-aantal volgt nu per week uit de bezetting (8 nu, meer/minder na mutaties).
+- **activiteit.js, validatie.js, main.js**: gebruiken de dynamische stoelenset i.p.v. de vaste lijst, zodat nieuwe stoelen overal meetellen.
+- Versie 3.27.101 → 3.27.102 (config-basis, sw.js).
+
+### Model
+- Een extra stoel = een `radiologen`-document met `vaste_stoel: true`. De oorspronkelijke 8 blijven ongewijzigd (geen migratie). Codes mogen later terugkomen; interne stoel-id's worden nooit hergebruikt.
+- Geen rules-wijziging nodig.
+
+---
+
 ## v3.27.101 — Veiliger deployen: automatische omgeving-detectie + fail-safe
 
 ### Wijzigingen

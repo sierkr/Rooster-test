@@ -1,19 +1,20 @@
-Rooster v3.27.101 — Release notes
+Rooster v3.27.102 — Release notes
 ==================================
 
-VEILIGER DEPLOYEN
+FLEXIBELE VASTE STOELEN
 -----------------------------
-Bij het uploaden hoef je config.js niet meer handmatig om te zetten. De app
-bepaalt de omgeving automatisch uit de URL:
-- /Rooster-test/ -> testomgeving (oranje balk, test-database)
-- /Rooster/      -> productie (default-database)
-- onbekende URL  -> app blokkeert zichzelf (rood scherm, fail-safe)
+Het aantal kolommen ligt niet meer vast op 8. Je beheert het via personen:
 
-Je gebruikt dus exact dezelfde bestanden in beide repos; niets meer per repo
-aanpassen. config.test.js is vervallen.
+- Nieuwe stoel: in de waarnemer-actie "→ Vast" kies je nu tussen een bestaande
+  stoel (vervangen) of een NIEUWE stoel (kolom erbij). Max. 12 stoelen.
+- Vertrek: per vaste radioloog een knop "Vertrek" met een vertrekdatum. Vanaf
+  die datum verdwijnt de kolom; de historie ervóór blijft zichtbaar.
 
-WAAROM
+Het kolom-aantal volgt per week uit de bezetting (8 nu, 9 na een toevoeging,
+7 na twee vertrekken), en terugbladeren blijft kloppen.
+
+LET OP
 -----------------------------
-De oude methode vereiste dat je config.js per repo handmatig omzette. Dat
-vergeten schreef per ongeluk naar de live database. Deze fout is nu structureel
-onmogelijk gemaakt.
+- Een lege stoel (geen bezetter op die datum) toont geen kolom.
+- Interne stoel-id's worden nooit hergebruikt; codes (initialen) mogen wel
+  terugkomen.

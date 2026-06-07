@@ -166,22 +166,39 @@ export function bezettingenInRange(slotId, vanIso, totIso) {
     }));
 }
 
-// Vaste radiologen op een gegeven datum. Wanneer een stoel leeg is op die
-// datum (geen geldige entry), valt hij terug op het ruwe stoel-record zodat
-// de kolom-volgorde stabiel blijft. Default datum = vandaag.
+// Alle vaste-stoel-id's: de oorspronkelijke 8 (VASTE_RAD_IDS) plus elke stoel
+// die als extra vaste stoel is aangemaakt (vaste_stoel === true). W-slots tellen
+// niet mee. Opgeheven stoel-id's worden nooit hergebruikt.
+export function alleVasteStoelIds() {
+  const ids = new Set(VASTE_RAD_IDS);
+  (state.radiologen || []).forEach(r => {
+    if (r && r.vaste_stoel === true && !SLOTS.includes(r.id)) ids.add(r.id);
+  });
+  return [...ids];
+}
+export function isVasteStoel(id) {
+  if (VASTE_RAD_IDS.includes(id)) return true;
+  return (state.radiologen || []).some(r => r.id === id && r.vaste_stoel === true && !SLOTS.includes(id));
+}
+
+// Vaste radiologen op een gegeven datum. Een stoel verschijnt alleen als er op
+// die datum een actieve bezetter is (leeg = geen kolom). Het aantal kolommen
+// volgt dus per datum uit de bezetting (8 nu, meer/minder na toevoegen/opheffen).
+// Gesorteerd op anciënniteit (in_dienst, oudste = links). Default datum = vandaag.
 export function vasteRadsOpDatum(datum) {
   const d = datum || vandaagIso();
-  const lijst = VASTE_RAD_IDS.map((id, idx) => {
-    const b = bezettingOpDatum(id, d);
+  const lijst = alleVasteStoelIds().map((id) => {
     const stoel = state.radiologen.find(r => r.id === id);
     if (!stoel) return null;
-    const obj = b ? { ...stoel, ...b, id } : { ...stoel };
-    obj._vasteIdx = idx; // stabiele tiebreak op de oorspronkelijke vaste volgorde
-    // Effectieve sorteersleutel: de echte in-dienst datum van de bezetter op
-    // deze datum, of — als die ontbreekt — een placeholder afgeleid van de
-    // vaste volgorde. Zo houdt een stoel zonder datum zijn oorspronkelijke
-    // plek en klopt de volgorde altijd direct, zonder verborgen Opslaan-stap.
-    obj._sortKey = obj.in_dienst || `${2000 + idx}-01-01`;
+    const b = bezettingOpDatum(id, d);
+    if (!b) return null; // geen actieve bezetter op deze datum → geen kolom
+    const obj = { ...stoel, ...b, id };
+    const idx = VASTE_RAD_IDS.indexOf(id);
+    obj._vasteIdx = idx < 0 ? 100 : idx; // extra stoelen achteraan bij gelijke sleutel
+    // Sorteersleutel: echte in-dienst datum, anders placeholder. De
+    // oorspronkelijke 8 houden hun positie; een extra stoel zonder datum
+    // sorteert achteraan.
+    obj._sortKey = obj.in_dienst || (idx < 0 ? '9999-01-01' : `${2000 + idx}-01-01`);
     return obj;
   }).filter(Boolean);
 
