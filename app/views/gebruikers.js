@@ -81,7 +81,6 @@ export async function renderGebView() {
           const stoel = state.radiologen.find(x => x.id === r.id);
           const hist = Array.isArray(stoel?.bezetting_historie) ? stoel.bezetting_historie : [];
           const open = hist.find(e => !e.tot);
-          const sinds = open?.van ? `vast sinds ${formatDatum(open.van, 'kort')}` : '';
           // In-dienst (anciënniteit) bepaalt de kolomvolgorde (oudste = links).
           // Placeholder behoudt de huidige vaste volgorde tot je echte data invult.
           const idx = VASTE_RAD_IDS.indexOf(r.id);
@@ -92,23 +91,22 @@ export async function renderGebView() {
               <div style="font-weight: 500;">${r.code}</div>
               <div style="min-width: 0;">
                 <div class="muted" style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.achternaam || ''}</div>
-                ${sinds ? `<div class="muted" style="font-size: 10px;">${sinds}</div>` : ''}
               </div>
               <div>
-                <input type="date" class="input" id="id_${r.id}" value="${indienstWaarde}" style="padding: 6px 4px; font-size: 12px; width: 100%;">
+                <input type="date" class="input" id="id_${r.id}" value="${indienstWaarde}" oninput="window.gebMarkDirty('vast')" style="padding: 6px 4px; font-size: 12px; width: 100%;">
               </div>
               <div style="display: flex; align-items: center; gap: 2px;">
-                <input type="number" class="input" id="pf_${r.id}" value="${pct}" min="10" max="100" step="1" style="padding: 6px 4px; font-size: 13px; text-align: right;">
+                <input type="number" class="input" id="pf_${r.id}" value="${pct}" min="10" max="100" step="1" oninput="window.gebMarkDirty('vast')" style="padding: 6px 4px; font-size: 13px; text-align: right;">
                 <span class="muted" style="font-size: 11px;">%</span>
               </div>
               <div>
-                <input type="number" class="input" id="vr_${r.id}" value="${vrecht}" min="0" max="100" step="1" style="padding: 6px 4px; font-size: 13px; text-align: right; width: 100%;">
+                <input type="number" class="input" id="vr_${r.id}" value="${vrecht}" min="0" max="100" step="1" oninput="window.gebMarkDirty('vast')" style="padding: 6px 4px; font-size: 13px; text-align: right; width: 100%;">
               </div>
               <button class="btn" style="font-size: 11px; padding: 6px 4px;" onclick="window.openWisselSheet('${r.id}')">Wissel</button>
             </div>
           `;
         }).join('')}
-        <button class="btn btn-primary" style="width: 100%; margin-top: 10px;" onclick="window.opslaanParttime()">Opslaan</button>
+        <button id="btnOpslaanVast" class="btn" disabled style="width: 100%; margin-top: 10px; opacity: 0.5; cursor: not-allowed;" onclick="window.opslaanParttime()">Opslaan</button>
       </div>
     </div>
   `;
@@ -126,15 +124,15 @@ export async function renderGebView() {
           return `
             <div style="display: grid; grid-template-columns: 32px 1fr 1fr 38px 60px 60px; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
               <div style="font-weight: 500; color: #5f5e5a;">${slotId}</div>
-              <input type="text" class="input" id="inv_code_${slotId}" placeholder="Code" maxlength="4" value="${(slot.code||'').replace(/"/g,'&quot;')}" style="padding: 6px 8px; font-size: 13px;">
-              <input type="text" class="input" id="inv_naam_${slotId}" placeholder="Achternaam" value="${(slot.achternaam||'').replace(/"/g,'&quot;')}" style="padding: 6px 8px; font-size: 13px;">
-              <span class="toggle-switch ${isActief ? 'aan' : ''}" id="inv_act_${slotId}" onclick="this.classList.toggle('aan')"></span>
+              <input type="text" class="input" id="inv_code_${slotId}" placeholder="Code" maxlength="4" value="${(slot.code||'').replace(/"/g,'&quot;')}" oninput="window.gebMarkDirty('wnr')" style="padding: 6px 8px; font-size: 13px;">
+              <input type="text" class="input" id="inv_naam_${slotId}" placeholder="Achternaam" value="${(slot.achternaam||'').replace(/"/g,'&quot;')}" oninput="window.gebMarkDirty('wnr')" style="padding: 6px 8px; font-size: 13px;">
+              <span class="toggle-switch ${isActief ? 'aan' : ''}" id="inv_act_${slotId}" onclick="this.classList.toggle('aan'); window.gebMarkDirty('wnr')"></span>
               <button class="btn" style="font-size: 11px; padding: 6px 4px;" onclick="window.openWisselSheet('${slotId}')">Wissel</button>
               <button class="btn" style="font-size: 11px; padding: 6px 4px; ${isLeeg ? 'opacity:0.4; cursor:not-allowed;' : ''}" ${isLeeg ? 'disabled' : ''} onclick="window.openMaakVastSheet('${slotId}')" title="Maak vast in een vaste-stoel">→ Vast</button>
             </div>
           `;
         }).join('')}
-        <button class="btn btn-primary" style="width: 100%; margin-top: 10px;" onclick="window.opslaanInvallers()">Waarnemers opslaan</button>
+        <button id="btnOpslaanWnr" class="btn" disabled style="width: 100%; margin-top: 10px; opacity: 0.5; cursor: not-allowed;" onclick="window.opslaanInvallers()">Waarnemers opslaan</button>
       </div>
     </div>
   `;
@@ -338,6 +336,17 @@ export async function renderGebView() {
 }
 
 // ==== Handlers ===============================================================
+
+// Maakt de Opslaan-knop van een sectie zichtbaar/actief zodra er iets wijzigt.
+// 'vast' = vaste radiologen, 'wnr' = waarnemers.
+window.gebMarkDirty = function(sectie) {
+  const btn = document.getElementById(sectie === 'wnr' ? 'btnOpslaanWnr' : 'btnOpslaanVast');
+  if (!btn) return;
+  btn.disabled = false;
+  btn.classList.add('btn-primary');
+  btn.style.opacity = '1';
+  btn.style.cursor = 'pointer';
+};
 
 window.opslaanParttime = async function() {
   try {

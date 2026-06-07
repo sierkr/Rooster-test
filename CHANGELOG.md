@@ -1,3 +1,13 @@
+## v3.27.100 — UX: directe kolomvolgorde + dirty-state Opslaan
+
+### Wijzigingen
+- **Gebruikers-tab**: het regeltje “vast sinds …” onder de naam is verwijderd; geen onderscheid meer tussen de maten in de lijst.
+- **helpers.js** (`vasteRadsOpDatum`): de “alles-of-niets”-fallback is vervangen door een **per-stoel** placeholder. Een stoel zonder in-dienst datum houdt zijn oorspronkelijke vaste positie; stoelen met een datum sorteren daar tussendoor. De kolomvolgorde klopt nu **altijd direct** — ook meteen na “Doorvoeren”, zonder dat eerst op Opslaan geklikt hoeft te worden.
+- **Gebruikers-tab**: beide Opslaan-knoppen (vaste radiologen + waarnemers) starten **grijs/uitgeschakeld** en worden pas **actief** zodra je een veld wijzigt (dirty-state). Na opslaan (re-render) staan ze weer grijs.
+- Versie 3.27.99 → 3.27.100 (config.js, sw.js).
+
+---
+
 ## v3.27.99 — Historisch correcte kolomvolgorde (senioriteit per bezetter)
 
 ### Wijzigingen

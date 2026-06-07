@@ -1,22 +1,17 @@
-Rooster v3.27.99 — Release notes
+Rooster v3.27.100 — Release notes
 ==================================
 
-HISTORISCH CORRECTE KOLOMVOLGORDE
+DIRECTE KOLOMVOLGORDE + DUIDELIJKERE OPSLAAN-KNOPPEN
 -----------------------------
-De kolomvolgorde klopt nu ook als je terugbladert in de tijd. Per week
-worden de kolommen gesorteerd op de senioriteit (in-dienst datum) van wie er
-in díé week op de stoel zat — niet op de huidige bezetter. Een voorganger
-houdt dus zijn eigen plek in oude weken; een nieuwe juniore vervanger staat
-vanaf zijn ingangsdatum rechts.
+- De kolomvolgorde klopt nu altijd meteen. Vul bij een wissel de juiste
+  data in, klik "Doorvoeren", en de app zet de volgorde overal goed —
+  geen extra (verborgen) Opslaan-klik meer nodig.
+- Een stoel zonder ingevulde in-dienst datum houdt zijn oorspronkelijke
+  positie, totdat je er een echte datum aan geeft.
 
-WAT IS NIEUW
+WIJZIGINGEN
 -----------------------------
-- Senioriteit hoort nu bij de persoon (de bezetting-entry), niet bij de stoel.
-- Wissel- en maak-vast-schermen hebben een apart veld "In dienst / senioriteit",
-  los van de ingangsdatum. Daarmee krijgt elke nieuwe bezetter zijn eigen
-  senioriteit-datum.
-
-LET OP
------------------------------
-Senioriteit (kolomvolgorde) en ingangsdatum (vanaf wanneer iemand op de stoel
-zit) zijn nu twee aparte datums. Vul bij een wissel beide bewust in.
+- "vast sinds ..." onder de naam is weg; geen onderscheid tussen de maten
+  in de Gebruikers-lijst.
+- De Opslaan-knoppen (vaste radiologen en waarnemers) zijn grijs zolang er
+  niets gewijzigd is, en lichten pas op als je daadwerkelijk iets aanpast.

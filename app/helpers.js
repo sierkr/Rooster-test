@@ -177,20 +177,19 @@ export function vasteRadsOpDatum(datum) {
     if (!stoel) return null;
     const obj = b ? { ...stoel, ...b, id } : { ...stoel };
     obj._vasteIdx = idx; // stabiele tiebreak op de oorspronkelijke vaste volgorde
+    // Effectieve sorteersleutel: de echte in-dienst datum van de bezetter op
+    // deze datum, of — als die ontbreekt — een placeholder afgeleid van de
+    // vaste volgorde. Zo houdt een stoel zonder datum zijn oorspronkelijke
+    // plek en klopt de volgorde altijd direct, zonder verborgen Opslaan-stap.
+    obj._sortKey = obj.in_dienst || `${2000 + idx}-01-01`;
     return obj;
   }).filter(Boolean);
 
-  // Kolomvolgorde op anciënniteit: sorteer op in_dienst van de bezetter op
-  // deze datum (oudste = meest senior = links). Fallback: zolang niet álle
-  // vaste stoelen een in_dienst-datum hebben, behoud de oorspronkelijke vaste
-  // volgorde — voorkomt een half-gesorteerde weergave tijdens de overgang.
-  const allesGevuld = lijst.length > 0 && lijst.every(r => !!r.in_dienst);
-  if (allesGevuld) {
-    lijst.sort((a, b) => {
-      if (a.in_dienst !== b.in_dienst) return a.in_dienst < b.in_dienst ? -1 : 1;
-      return a._vasteIdx - b._vasteIdx;
-    });
-  }
+  // Kolomvolgorde op anciënniteit: oudste in-dienst = links.
+  lijst.sort((a, b) => {
+    if (a._sortKey !== b._sortKey) return a._sortKey < b._sortKey ? -1 : 1;
+    return a._vasteIdx - b._vasteIdx;
+  });
   return lijst;
 }
 export function vasteRads() {
