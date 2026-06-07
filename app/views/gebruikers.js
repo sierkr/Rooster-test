@@ -66,9 +66,10 @@ export async function renderGebView() {
       <div class="summary-label" style="margin-bottom: 6px;">Vaste radiologen — parttime &amp; vakantierecht</div>
       <div class="card">
         <p class="muted" style="margin: 0 0 10px;">Parttime: percentage van fulltime (default 100%). Vakantierecht: aantal V-dagen per jaar (default 40). Tik <b>Wissel</b> om een persoon op de stoel te wisselen vanaf een datum.</p>
-        <div style="display: grid; grid-template-columns: 50px 1fr 56px 56px 70px; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 11px; font-weight: 600; color: #5f5e5a;">
+        <div style="display: grid; grid-template-columns: 50px 1fr 120px 56px 56px 70px; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 11px; font-weight: 600; color: #5f5e5a;">
           <div>Code</div>
           <div>Naam</div>
+          <div style="text-align: center;">In dienst</div>
           <div style="text-align: center;">Parttime</div>
           <div style="text-align: center;">Vakantie</div>
           <div></div>
@@ -81,12 +82,20 @@ export async function renderGebView() {
           const hist = Array.isArray(stoel?.bezetting_historie) ? stoel.bezetting_historie : [];
           const open = hist.find(e => !e.tot);
           const sinds = open?.van ? `vast sinds ${formatDatum(open.van, 'kort')}` : '';
+          // In-dienst (anciënniteit) bepaalt de kolomvolgorde (oudste = links).
+          // Placeholder behoudt de huidige vaste volgorde tot je echte data invult.
+          const idx = VASTE_RAD_IDS.indexOf(r.id);
+          const indienstPlaceholder = `${2000 + (idx < 0 ? 0 : idx)}-01-01`;
+          const indienstWaarde = open?.in_dienst || stoel?.in_dienst || indienstPlaceholder;
           return `
-            <div style="display: grid; grid-template-columns: 50px 1fr 56px 56px 70px; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
+            <div style="display: grid; grid-template-columns: 50px 1fr 120px 56px 56px 70px; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
               <div style="font-weight: 500;">${r.code}</div>
               <div style="min-width: 0;">
                 <div class="muted" style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.achternaam || ''}</div>
                 ${sinds ? `<div class="muted" style="font-size: 10px;">${sinds}</div>` : ''}
+              </div>
+              <div>
+                <input type="date" class="input" id="id_${r.id}" value="${indienstWaarde}" style="padding: 6px 4px; font-size: 12px; width: 100%;">
               </div>
               <div style="display: flex; align-items: center; gap: 2px;">
                 <input type="number" class="input" id="pf_${r.id}" value="${pct}" min="10" max="100" step="1" style="padding: 6px 4px; font-size: 13px; text-align: right;">
@@ -335,6 +344,7 @@ window.opslaanParttime = async function() {
     for (const r of vasteRads()) {
       const elPf = document.getElementById('pf_' + r.id);
       const elVr = document.getElementById('vr_' + r.id);
+      const elId = document.getElementById('id_' + r.id);
       const update = {};
       if (elPf) {
         const pct = Math.max(10, Math.min(100, parseInt(elPf.value, 10) || 100));
@@ -344,11 +354,36 @@ window.opslaanParttime = async function() {
         const dgn = Math.max(0, Math.min(100, parseInt(elVr.value, 10) || 40));
         update.vakantierecht = dgn;
       }
+      // In-dienst (anciënniteit) op de open bezetting-entry zetten; die bepaalt
+      // de kolomvolgorde (oudste = links). Geen historie? Dan maken we een open
+      // entry aan uit de top-level velden.
+      if (elId && elId.value) {
+        const stoel = state.radiologen.find(x => x.id === r.id);
+        const hist = Array.isArray(stoel?.bezetting_historie)
+          ? stoel.bezetting_historie.map(e => ({ ...e }))
+          : [];
+        const open = hist.find(e => !e.tot);
+        if (open) {
+          open.in_dienst = elId.value;
+        } else {
+          hist.push({
+            voornaam: stoel?.voornaam || '',
+            achternaam: stoel?.achternaam || '',
+            code: stoel?.code || r.id,
+            vakantierecht: typeof stoel?.vakantierecht === 'number' ? stoel.vakantierecht : 40,
+            parttime_factor: typeof stoel?.parttime_factor === 'number' ? stoel.parttime_factor : 1,
+            in_dienst: elId.value,
+            van: null, tot: null,
+          });
+        }
+        update.bezetting_historie = hist;
+        update.in_dienst = elId.value;
+      }
       if (Object.keys(update).length > 0) {
         await setDoc(doc(db, 'radiologen', r.id), update, { merge: true });
       }
     }
-    alert('Parttime &amp; vakantierecht opgeslagen.');
+    alert('Parttime, vakantierecht en in-dienst opgeslagen.');
   } catch (e) {
     alert('Opslaan mislukt: ' + e.message);
   }
@@ -830,6 +865,7 @@ async function migreerBezetting(vanSlot, naarSlot, datum) {
       code: vanStoel.code || vanSlot,
       vakantierecht: typeof vanStoel.vakantierecht === 'number' ? vanStoel.vakantierecht : 40,
       parttime_factor: typeof vanStoel.parttime_factor === 'number' ? vanStoel.parttime_factor : 1,
+      in_dienst: vanStoel.in_dienst || null,
       van: null, tot: null,
     });
   }
@@ -860,6 +896,7 @@ async function migreerBezetting(vanSlot, naarSlot, datum) {
     code: persoon.code || vanSlot,
     vakantierecht: typeof persoon.vakantierecht === 'number' ? persoon.vakantierecht : 40,
     parttime_factor: typeof persoon.parttime_factor === 'number' ? persoon.parttime_factor : 1,
+    in_dienst: persoon.in_dienst || null,
     van: datum, tot: null,
   });
 
@@ -872,12 +909,14 @@ async function migreerBezetting(vanSlot, naarSlot, datum) {
     achternaam: persoon.achternaam || '',
     vakantierecht: persoon.vakantierecht ?? 40,
     parttime_factor: persoon.parttime_factor ?? 1,
+    in_dienst: persoon.in_dienst || null,
     bezetting_historie: naarHistNieuw,
   }, { merge: true });
   batch1.set(doc(db, 'radiologen', vanSlot), {
     id: vanSlot,
     code: '', voornaam: '', achternaam: '',
     actief: false,
+    in_dienst: null,
     isSlot: SLOTS.includes(vanSlot),
     bezetting_historie: vanHistNieuw,
   }, { merge: true });

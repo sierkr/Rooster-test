@@ -1,25 +1,25 @@
-Rooster v3.27.97 — Release notes
+Rooster v3.27.98 — Release notes
 ==================================
 
-TESTOMGEVING TOEGEVOEGD
+KOLOMVOLGORDE OP ANCIËNNITEIT
 -----------------------------
-Er is een geïsoleerde testomgeving mogelijk gemaakt om structurele en
-interface-wijzigingen te bekijken voordat ze live gaan (bv. kolom/radioloog
-verwijderen en het opschuiven in het overzicht, of een nieuwe interface-opzet).
+De volgorde van de vaste radiologen-kolommen wordt nu bepaald door de
+in-dienst datum van wie er op die datum op de stoel zit (oudste = links).
+Een nieuwe, juniore vervanger komt daardoor automatisch rechts in het
+overzicht; bij vertrek van een seniore maat schuift de rest een plek op.
 
-WERKING
+WAT IS NIEUW
 -----------------------------
-- Hetzelfde Firebase-project (dezelfde inlog-accounts), maar de app wijst via
-  window.FIRESTORE_DB naar een aparte Firestore named database 'test'. De live
-  (default) database blijft ongewijzigd tijdens testen.
-- config.test.js: drop-in config voor de test-branch (FIRESTORE_DB = 'test',
-  versielabel met -TEST zodat de testmodus in de UI zichtbaar is).
-- Veiligheidsguard: gebruiker aanmaken/verwijderen/wachtwoord-reset zijn in de
-  testomgeving geblokkeerd, omdat die server-side altijd de live database +
-  Auth raken. Alle overige acties werken volledig in de test-database.
+- Gebruikers-tab: datumveld "In dienst" per vaste radioloog, links van de
+  Parttime-kolom. Voorgevuld met een placeholder die de huidige volgorde
+  behoudt; pas de data aan naar de echte anciënniteitsdata en sla op.
+- De kolomvolgorde in Overzicht, Afdeling, Dienst, Vakantie, Radioloog,
+  Jaaroverzicht en Activiteit volgt deze datums.
+- Bij een stoelwissel ("maak vast") verhuist de in-dienst datum mee met de
+  persoon.
 
-INRICHTING & DATA
+OVERGANG
 -----------------------------
-Zie TESTOMGEVING.md voor het aanmaken van de named database, het publiceren van
-de rules op die database, het bootstrappen van de eerste beheerder, en het
-verversen van de testdata via de ingebouwde backup/restore.
+Zolang niet alle vaste stoelen een in-dienst datum hebben, blijft de
+oorspronkelijke vaste volgorde behouden (geen half-gesorteerde weergave).
+Vul de 8 datums in de Gebruikers-tab in en sla op om over te schakelen.

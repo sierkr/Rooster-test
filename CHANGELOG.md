@@ -1,3 +1,18 @@
+## v3.27.98 — Kolomvolgorde op anciënniteit (in-dienst datum)
+
+### Wijzigingen
+- **Gebruikers-tab**: nieuw datumveld **In dienst** per vaste radioloog, links van de Parttime-kolom. Voorgevuld met een placeholder-datum die de huidige vaste volgorde behoudt (oudste = links); aan te passen naar de echte anciënniteitsdata. Opslaan schrijft de datum naar de open `bezetting_historie`-entry van de stoel.
+- **helpers.js** (`vasteRadsOpDatum`): de vaste radiologen worden nu gesorteerd op de in-dienst datum van de bezetter op de getoonde datum (oudste = links). Fallback: zolang niet álle stoelen een datum hebben, blijft de oorspronkelijke vaste volgorde behouden. Werkt door in Overzicht, Afdeling, Dienst, Vakantie, Radioloog en Jaaroverzicht.
+- **helpers.js** (`bezettingOpDatum`): geeft `in_dienst` mee (uit de entry, met top-level fallback).
+- **Activiteit-tab**: kolomvolgorde van het vaste deel volgt nu dezelfde anciënniteit-sortering (gesorteerd op periode-einde); waarnemers blijven rechts.
+- **“Maak vast” / stoelwissel**: `in_dienst` verhuist mee met de persoon, zodat een nieuwe (juniore) vervanger automatisch rechts in het overzicht komt.
+- Versie 3.27.97 → 3.27.98 (config.js, sw.js).
+
+### Datamodel
+- Nieuw veld `in_dienst` (`YYYY-MM-DD`) op de `bezetting_historie`-entry (per persoon), met top-level spiegel op het stoel-record als fallback. Geen rules-wijziging nodig.
+
+---
+
 ## v3.27.97 — Testomgeving: named Firestore-database + guard
 
 ### Wijzigingen

@@ -105,6 +105,7 @@ export function bezettingOpDatum(slotId, datum) {
       code: entry.code || stoel.code || slotId,
       vakantierecht: typeof entry.vakantierecht === 'number' ? entry.vakantierecht : (stoel.vakantierecht ?? 40),
       parttime_factor: typeof entry.parttime_factor === 'number' ? entry.parttime_factor : (stoel.parttime_factor ?? 1),
+      in_dienst: entry.in_dienst || stoel.in_dienst || null,
       van: entry.van || null,
       tot: entry.tot || null,
     };
@@ -119,6 +120,7 @@ export function bezettingOpDatum(slotId, datum) {
     code: stoel.code || slotId,
     vakantierecht: typeof stoel.vakantierecht === 'number' ? stoel.vakantierecht : 40,
     parttime_factor: typeof stoel.parttime_factor === 'number' ? stoel.parttime_factor : 1,
+    in_dienst: stoel.in_dienst || null,
     van: null,
     tot: null,
   };
@@ -169,13 +171,27 @@ export function bezettingenInRange(slotId, vanIso, totIso) {
 // de kolom-volgorde stabiel blijft. Default datum = vandaag.
 export function vasteRadsOpDatum(datum) {
   const d = datum || vandaagIso();
-  return VASTE_RAD_IDS.map(id => {
+  const lijst = VASTE_RAD_IDS.map((id, idx) => {
     const b = bezettingOpDatum(id, d);
     const stoel = state.radiologen.find(r => r.id === id);
     if (!stoel) return null;
-    if (b) return { ...stoel, ...b, id };
-    return stoel;
+    const obj = b ? { ...stoel, ...b, id } : { ...stoel };
+    obj._vasteIdx = idx; // stabiele tiebreak op de oorspronkelijke vaste volgorde
+    return obj;
   }).filter(Boolean);
+
+  // Kolomvolgorde op anciënniteit: sorteer op in_dienst van de bezetter op
+  // deze datum (oudste = meest senior = links). Fallback: zolang niet álle
+  // vaste stoelen een in_dienst-datum hebben, behoud de oorspronkelijke vaste
+  // volgorde — voorkomt een half-gesorteerde weergave tijdens de overgang.
+  const allesGevuld = lijst.length > 0 && lijst.every(r => !!r.in_dienst);
+  if (allesGevuld) {
+    lijst.sort((a, b) => {
+      if (a.in_dienst !== b.in_dienst) return a.in_dienst < b.in_dienst ? -1 : 1;
+      return a._vasteIdx - b._vasteIdx;
+    });
+  }
+  return lijst;
 }
 export function vasteRads() {
   return vasteRadsOpDatum(vandaagIso());

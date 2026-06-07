@@ -133,7 +133,7 @@ export function renderActView() {
   const toonInv = state.actInvallers;
   const invallers = toonInv ? actieveInvallers() : [];
   const slotIds = [
-    ...VASTE_RAD_IDS,
+    ...vasteRadsOpDatum(tot).map(r => r.id),
     ...(toonInv ? invallers.map(r => r.id) : []),
   ];
 
