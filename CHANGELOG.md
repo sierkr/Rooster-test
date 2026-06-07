@@ -1,3 +1,17 @@
+## v3.27.101 — Veiliger deployen: automatische omgeving-detectie + fail-safe
+
+### Wijzigingen
+- **config.js**: één config voor productie én test. De omgeving wordt automatisch uit de URL bepaald (`/Rooster/` = productie, `/Rooster-test/` = test). Geen handmatige config-omzetting meer nodig bij het uploaden — dezelfde bestanden gaan naar beide repos.
+- **config.test.js**: verwijderd (overbodig geworden).
+- **main.js**: fail-safe — bij een **onbekende** URL blokkeert de app zichzelf met een rood scherm, zodat er nooit per ongeluk naar de verkeerde database wordt geschreven. In **test** verschijnt een opvallende oranje "TESTOMGEVING"-balk bovenaan.
+- **TESTOMGEVING.md**: bijgewerkt naar de nieuwe methode (zelfde zip naar beide repos).
+- Versie 3.27.100 → 3.27.101 (config.js basis, sw.js).
+
+### Waarom
+Voorheen moest je bij elke upload `config.js` handmatig omzetten naar de test-inhoud; dat vergeten schreef stilletjes naar productie. De URL-detectie haalt die foutgevoelige stap volledig weg.
+
+---
+
 ## v3.27.100 — UX: directe kolomvolgorde + dirty-state Opslaan
 
 ### Wijzigingen

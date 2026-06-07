@@ -1,17 +1,19 @@
-Rooster v3.27.100 — Release notes
+Rooster v3.27.101 — Release notes
 ==================================
 
-DIRECTE KOLOMVOLGORDE + DUIDELIJKERE OPSLAAN-KNOPPEN
+VEILIGER DEPLOYEN
 -----------------------------
-- De kolomvolgorde klopt nu altijd meteen. Vul bij een wissel de juiste
-  data in, klik "Doorvoeren", en de app zet de volgorde overal goed —
-  geen extra (verborgen) Opslaan-klik meer nodig.
-- Een stoel zonder ingevulde in-dienst datum houdt zijn oorspronkelijke
-  positie, totdat je er een echte datum aan geeft.
+Bij het uploaden hoef je config.js niet meer handmatig om te zetten. De app
+bepaalt de omgeving automatisch uit de URL:
+- /Rooster-test/ -> testomgeving (oranje balk, test-database)
+- /Rooster/      -> productie (default-database)
+- onbekende URL  -> app blokkeert zichzelf (rood scherm, fail-safe)
 
-WIJZIGINGEN
+Je gebruikt dus exact dezelfde bestanden in beide repos; niets meer per repo
+aanpassen. config.test.js is vervallen.
+
+WAAROM
 -----------------------------
-- "vast sinds ..." onder de naam is weg; geen onderscheid tussen de maten
-  in de Gebruikers-lijst.
-- De Opslaan-knoppen (vaste radiologen en waarnemers) zijn grijs zolang er
-  niets gewijzigd is, en lichten pas op als je daadwerkelijk iets aanpast.
+De oude methode vereiste dat je config.js per repo handmatig omzette. Dat
+vergeten schreef per ongeluk naar de live database. Deze fout is nu structureel
+onmogelijk gemaakt.

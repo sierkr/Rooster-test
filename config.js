@@ -1,13 +1,15 @@
 // ============================================================================
-// Firebase configuratie — TESTOMGEVING
+// Firebase configuratie + automatische omgeving-detectie
 // ============================================================================
-// Drop-in vervanger voor config.js op de test-branch. Gebruikt HETZELFDE
-// Firebase-project (en dus dezelfde inlog-accounts), maar wijst de app naar een
-// aparte Firestore named database 'test'. De live (default) database blijft
-// daardoor volledig ongewijzigd tijdens het testen.
+// ÉÉN config.js voor zowel productie als test. De omgeving wordt automatisch
+// uit de URL bepaald, zodat je bij het uploaden NOOIT meer iets handmatig hoeft
+// om te zetten — je gebruikt in beide repos exact dezelfde bestanden.
 //
-// Gebruik: op de test-branch dit bestand over config.js heen kopiëren
-// (zie TESTOMGEVING.md). NIET op de productie-branch gebruiken.
+//   .../Rooster-test/...  -> TEST,      schrijft naar de 'test'-database
+//   .../Rooster/...       -> PRODUCTIE, schrijft naar de (default)-database
+//   iets anders / onbekend -> de app BLOKKEERT zichzelf (fail-safe), zodat er
+//                             nooit per ongeluk naar de verkeerde database
+//                             geschreven kan worden.
 // ============================================================================
 window.FIREBASE_CONFIG = {
   apiKey: "AIzaSyCIp8T0-BNPlh3j9X2QbXkQsaq7F91xoOA",
@@ -18,13 +20,26 @@ window.FIREBASE_CONFIG = {
   appId: "1:798466630775:web:65252d0d0a606ab9141272"
 };
 
-// Named Firestore-database voor de testomgeving. Productie laat deze weg
-// (= '(default)'). Zolang deze op 'test' staat:
-//   - leest/schrijft de app uitsluitend in de 'test'-database;
-//   - zijn de account-Cloud-Functions (gebruiker aanmaken/verwijderen/reset)
-//     geblokkeerd, omdat die altijd de live database zouden raken.
-window.FIRESTORE_DB = "test";
+// Basis-versienummer (cache-busting). In test krijgt het label '-TEST' erbij.
+window.APP_VERSIE_BASIS = "3.27.101";
 
-// Versie van de app - wordt gebruikt voor cache-busting. Het -TEST label maakt
-// in de UI (versielabel) direct zichtbaar dat dit de testomgeving is.
-window.APP_VERSIE = "3.27.100-TEST";
+(function bepaalOmgeving() {
+  var pad = (typeof location !== 'undefined' && location.pathname) ? location.pathname : '';
+  var isTest = /\/Rooster-test(\/|$)/i.test(pad);
+  var isProd = !isTest && /\/Rooster(\/|$)/i.test(pad);
+
+  if (isTest) {
+    window.APP_ENV     = 'test';
+    window.FIRESTORE_DB = 'test';
+    window.APP_VERSIE   = window.APP_VERSIE_BASIS + '-TEST';
+  } else if (isProd) {
+    window.APP_ENV     = 'prod';
+    window.FIRESTORE_DB = '(default)';
+    window.APP_VERSIE   = window.APP_VERSIE_BASIS;
+  } else {
+    // Onbekende omgeving: niet raden. main.js blokkeert de app volledig.
+    window.APP_ENV     = 'unknown';
+    window.FIRESTORE_DB = '(default)';
+    window.APP_VERSIE   = window.APP_VERSIE_BASIS + '-?';
+  }
+})();

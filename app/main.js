@@ -405,6 +405,31 @@ function startApp() {
 
 // ==== Boot ===================================================================
 
+// Omgevings-bewaking (fail-safe). De omgeving is in config.js uit de URL bepaald.
+// - 'unknown': blokkeer de app volledig zodat er nooit per ongeluk naar een
+//   database geschreven wordt.
+// - 'test': toon een opvallende balk zodat je altijd ziet dat je in test zit.
+(function omgevingBewaking() {
+  const env = window.APP_ENV || 'unknown';
+  if (env === 'unknown') {
+    document.body.innerHTML =
+      '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;'
+      + 'background:#7a1414;color:#fff;font-family:system-ui,sans-serif;padding:24px;text-align:center;z-index:99999;">'
+      + '<div><h1 style="margin:0 0 12px;">Omgeving niet herkend</h1>'
+      + '<p style="max-width:520px;margin:0 auto;line-height:1.5;">Deze app draait niet op een herkende URL '
+      + '(<b>/Rooster/</b> of <b>/Rooster-test/</b>) en is daarom geblokkeerd, om te voorkomen dat er per '
+      + 'ongeluk naar de verkeerde database wordt geschreven.</p></div></div>';
+    throw new Error('Onbekende omgeving — app geblokkeerd.');
+  }
+  if (env === 'test') {
+    const bar = document.createElement('div');
+    bar.textContent = '⚠ TESTOMGEVING — schrijft naar de test-database (' + (window.APP_VERSIE || '') + ')';
+    bar.style.cssText = 'position:sticky;top:0;z-index:9999;background:#d9760a;color:#fff;'
+      + 'font-family:system-ui,sans-serif;font-weight:600;font-size:13px;text-align:center;padding:6px 10px;';
+    document.body.insertBefore(bar, document.body.firstChild);
+  }
+})();
+
 document.getElementById('versieLabel').textContent = window.APP_VERSIE;
 // Versielabel ook in het change-password scherm
 document.querySelectorAll('.versieLabel2').forEach(el => el.textContent = window.APP_VERSIE);
