@@ -1,3 +1,15 @@
+## v3.27.109 — Werkvloer-monitor terug, kleur-recolor & vakantie-waarschuwing
+
+### Wijzigingen
+- **Per-dag-monitor terug (Optie B)**: indicator-kolommen tonen weer álle werkvloer-functies (≥1 op werkdagen), niet alleen de verplichte. Zo zie je per dag weer welke functies niet bezet zijn.
+- **Datum/Aantal-rood blijft zuiver**: alleen de strikte app-criteria (verplichte functies + bezetting-regels) laten de datum/Aantal rood worden. Werkvloer-only functies kleuren alleen hun eigen indicator-kolom rood als ze ontbreken — een normale dag zonder bv. Mammo maakt niet de hele datum rood.
+- **Kleur-recolor in Excel hersteld**: de conditionele kleurregel herkent nu alle codevormen (exacte code, eerste letter, punt-prefix zoals `.WB`, én cijfer-prefix zoals `3W`/`5B`) en is hoofdletterongevoelig. Wijzig je een cel in Excel, dan krijgt die meteen de juiste functiekleur.
+- **Waarschuwing bij iedereen-vakantie**: doordat de werkvloer-indicatoren weer aanstaan, lichten op een dag waarop iedereen vrij is alle werkvloer-letters rood op (en de datum als er strikte criteria gelden).
+
+Versie 3.27.108 → 3.27.109 (config-basis, sw.js).
+
+---
+
 ## v3.27.108 — Export volgt de app exact (regel-gedreven formules)
 
 ### Probleem

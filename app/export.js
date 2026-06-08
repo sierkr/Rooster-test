@@ -417,23 +417,35 @@ export async function actExportJaar(jaar, naamParam) {
         .filter(Boolean)
     )];
 
-    // Vereist aantal per code per weekdag (1..7): uit verplicht-vlag (≥1 op
-    // werkdagen) gecombineerd met de bezetting-regels (per dag/code/aantal).
+    // Vereist aantal per code per weekdag (1..7), als basis voor de
+    // indicator-kolommen. Bronnen, gecombineerd via max:
+    //  - verplicht-vlag  → ≥1 op werkdagen
+    //  - bezetting-regel → aantal op die weekdag
+    //  - werkvloer-vlag  → ≥1 op werkdagen (per-dag-monitor: toon wat ontbreekt)
     const reqByCode = {};
     const ensureReq = (code) => (reqByCode[code] = reqByCode[code] || [0, 0, 0, 0, 0, 0, 0, 0]);
-    functiesActief.filter(f => f.verplicht === true).forEach(f => {
-      const code = hoofdLetterCode(f.code || f.id);
-      if (!code) return;
-      const a = ensureReq(code);
-      for (let d = 1; d <= 5; d++) a[d] = Math.max(a[d], 1);
-    });
+    const verplichteCodes = functiesActief.filter(f => f.verplicht === true)
+      .map(f => hoofdLetterCode(f.code || f.id)).filter(Boolean);
+    verplichteCodes.forEach(code => { const a = ensureReq(code); for (let d = 1; d <= 5; d++) a[d] = Math.max(a[d], 1); });
     bezettingRegels.forEach(r => {
       const code = hoofdLetterCode(r.code || '');
       const dn = DAGNR[r.dag];
       const aantal = Number(r.aantal) || 0;
       if (code && dn && aantal > 0) { const a = ensureReq(code); a[dn] = Math.max(a[dn], aantal); }
     });
-    // Indicator-kolommen: elke code met een eis (verplicht en/of bezetting-regel).
+    // Werkvloer-functies als per-dag-monitor (≥1 op werkdagen).
+    werkvloerUniek.forEach(code => { const a = ensureReq(code); for (let d = 1; d <= 5; d++) a[d] = Math.max(a[d], 1); });
+
+    // "Strikte" codes = de échte app-criteria (verplicht + bezetting-regels).
+    // Alleen déze laten de datum/Aantal rood worden; werkvloer-only codes dienen
+    // als overzicht (rode letter in hun eigen indicator-kolom als ze ontbreken),
+    // zodat een normale dag zonder bv. Mammo niet meteen de hele datum rood maakt.
+    const strictCodes = new Set([
+      ...verplichteCodes,
+      ...bezettingRegels.map(r => hoofdLetterCode(r.code || '')).filter(Boolean),
+    ]);
+
+    // Indicator-kolommen: elke code met een eis (verplicht, regel én/of werkvloer).
     const FUNCTIE_LETTERS = Object.keys(reqByCode).sort();
     const COL_FUNCTIES = FUNCTIE_LETTERS.map((_, i) => COL_AANTAL + 2 + i);
 
@@ -584,8 +596,13 @@ export async function actExportJaar(jaar, naamParam) {
 
     // Indicator-kolomletters + "is er een tekort op deze dag?"-uitdrukkingen.
     const indLetters   = FUNCTIE_LETTERS.map((_, li) => kolLetter(COL_FUNCTIES[li]));
-    const tekortOR     = indLetters.length ? `OR(${indLetters.map(k => `${k}2<>""`).join(',')})` : null;
-    const geenTekort   = indLetters.length ? indLetters.map(k => `${k}2=""`).join(',') : null;
+    // Voor datum/Aantal-rood tellen alleen de strikte criteria (verplicht +
+    // bezetting-regels) mee; werkvloer-only indicatoren dienen als overzicht.
+    const strictLetters = FUNCTIE_LETTERS
+      .map((code, li) => (strictCodes.has(code) ? kolLetter(COL_FUNCTIES[li]) : null))
+      .filter(Boolean);
+    const tekortOR     = strictLetters.length ? `OR(${strictLetters.map(k => `${k}2<>""`).join(',')})` : null;
+    const geenTekort   = strictLetters.length ? strictLetters.map(k => `${k}2=""`).join(',') : null;
 
     // 1. Datum rood op een werkdag zodra een norm niet gehaald wordt (tekort).
     //    De normen komen uit de bezetting-regels + verplichte functies (zie
@@ -635,7 +652,7 @@ export async function actExportJaar(jaar, naamParam) {
       .filter(([, hex]) => hex && hex.length === 6)
       .map(([code, hex], i) => ({
         type: 'expression',
-        formulae: [`OR(C2="${code}",LEFT(C2,1)="${code}",(LEFT(C2,1)=".")*(MID(C2,2,1)="${code}"))`],
+        formulae: [`OR(UPPER(C2)="${code}",UPPER(LEFT(C2,1))="${code}",AND(LEFT(C2,1)=".",UPPER(MID(C2,2,1))="${code}"),AND(ISNUMBER(VALUE(LEFT(C2,1))),UPPER(MID(C2,2,1))="${code}"))`],
         style: {
           fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + hex.toUpperCase() } },
           font: { color: { argb: tekstArgb(hex) } },

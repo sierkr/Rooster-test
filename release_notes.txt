@@ -1,18 +1,13 @@
-Rooster v3.27.108 — Release notes
+Rooster v3.27.109 — Release notes
 ==================================
 
-EXPORT VOLGT DE APP EXACT (REGEL-GEDREVEN)
+WERKVLOER-MONITOR, KLEUR-RECOLOR & VAKANTIE-WAARSCHUWING
 -----------------------------
-De Excel-export leidt formules, normen, indicatoren en kleuren nu op exporttijd
-af uit de actuele app-instellingen:
-
-- Aantal = werkvloerbezetting (codes met de werkvloer-vlag).
-- Rode datum + Aantal-kleur volgen de bezetting-regels (per dag/code/aantal) +
-  verplichte functies. Geen vaste 5/4-norm meer.
-- Indicator-kolommen tonen een code zolang er een tekort is t.o.v. de vereiste
-  bezetting voor die weekdag.
-- Celkleuren (incl. V/K) komen uit de functiekleur in de app.
-- Verborgen blad "_regels" legt de gebruikte functies en normen vast.
-
-De layout blijft gelijk. Pas je in de app regels/functies/kleuren aan, dan
-weerspiegelt een nieuwe export dat automatisch.
+- Indicator-kolommen tonen weer alle werkvloer-functies per dag (de per-dag-
+  monitor van weleer), met de regel-normen eroverheen.
+- De datum/Aantal worden alleen rood op de echte app-criteria (verplichte
+  functies + bezetting-regels), zodat een normale dag niet onnodig rood wordt.
+- Een cel die je in Excel naar een functiecode wijzigt, krijgt nu weer de juiste
+  kleur — ook varianten als .WB, 3W of 5B.
+- Geef je iedereen op een dag vakantie, dan lichten alle werkvloer-indicatoren
+  rood op als waarschuwing.
