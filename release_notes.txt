@@ -1,20 +1,15 @@
-Rooster v3.27.102 — Release notes
+Rooster v3.27.103 — Release notes
 ==================================
 
-FLEXIBELE VASTE STOELEN
+VERTREK HERSTELLEN / CORRIGEREN
 -----------------------------
-Het aantal kolommen ligt niet meer vast op 8. Je beheert het via personen:
+Een (foutief) vertrek is nu via de app terug te draaien:
 
-- Nieuwe stoel: in de waarnemer-actie "→ Vast" kies je nu tussen een bestaande
-  stoel (vervangen) of een NIEUWE stoel (kolom erbij). Max. 12 stoelen.
-- Vertrek: per vaste radioloog een knop "Vertrek" met een vertrekdatum. Vanaf
-  die datum verdwijnt de kolom; de historie ervóór blijft zichtbaar.
+- Vertrekdatum nog niet gepasseerd: de stoel staat nog in de lijst met
+  "vertrekt per <datum>"; klik op "Intrekken" om het vertrek te annuleren.
+- Vertrekdatum al gepasseerd: de stoel staat in de nieuwe sectie "Vertrokken
+  stoelen"; klik op "Herstellen" om de kolom terug te halen.
 
-Het kolom-aantal volgt per week uit de bezetting (8 nu, 9 na een toevoeging,
-7 na twee vertrekken), en terugbladeren blijft kloppen.
-
-LET OP
------------------------------
-- Een lege stoel (geen bezetter op die datum) toont geen kolom.
-- Interne stoel-id's worden nooit hergebruikt; codes (initialen) mogen wel
-  terugkomen.
+Intrekken/Herstellen maakt de bezetter weer doorlopend actief. Een verkeerde
+datum los je op door in te trekken en daarna Vertrek opnieuw met de juiste
+datum uit te voeren.

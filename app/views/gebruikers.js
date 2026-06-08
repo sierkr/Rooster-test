@@ -87,11 +87,15 @@ export async function renderGebView() {
           const idx = VASTE_RAD_IDS.indexOf(r.id);
           const indienstPlaceholder = idx < 0 ? '9999-01-01' : `${2000 + idx}-01-01`;
           const indienstWaarde = open?.in_dienst || stoel?.in_dienst || indienstPlaceholder;
+          // Gepland vertrek: de bezetter van vandaag heeft een einddatum (tot) in
+          // de toekomst. De stoel is dan nog zichtbaar tot die datum.
+          const geplandVertrek = r.tot ? plusDagen(r.tot, 1) : null;
           return `
             <div style="display: grid; grid-template-columns: 50px 1fr 120px 56px 56px 120px; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
               <div style="font-weight: 500;">${r.code}</div>
               <div style="min-width: 0;">
                 <div class="muted" style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.achternaam || ''}</div>
+                ${geplandVertrek ? `<div style="font-size: 10px; color: #b3261e;">vertrekt per ${formatDatum(geplandVertrek, 'kort')}</div>` : ''}
               </div>
               <div>
                 <input type="date" class="input" id="id_${r.id}" value="${indienstWaarde}" oninput="window.gebMarkDirty('vast')" style="padding: 6px 4px; font-size: 12px; width: 100%;">
@@ -105,7 +109,9 @@ export async function renderGebView() {
               </div>
               <div style="display: flex; gap: 4px;">
                 <button class="btn" style="font-size: 11px; padding: 6px 4px; flex: 1;" onclick="window.openWisselSheet('${r.id}')">Wissel</button>
-                <button class="btn" style="font-size: 11px; padding: 6px 4px; flex: 1;" onclick="window.openVertrekSheet('${r.id}')" title="Stoel laten vertrekken per datum">Vertrek</button>
+                ${geplandVertrek
+                  ? `<button class="btn" style="font-size: 11px; padding: 6px 4px; flex: 1;" onclick="window.vertrekIntrekken('${r.id}')" title="Gepland vertrek intrekken">Intrekken</button>`
+                  : `<button class="btn" style="font-size: 11px; padding: 6px 4px; flex: 1;" onclick="window.openVertrekSheet('${r.id}')" title="Stoel laten vertrekken per datum">Vertrek</button>`}
               </div>
             </div>
           `;
@@ -114,6 +120,38 @@ export async function renderGebView() {
       </div>
     </div>
   `;
+
+  // Vertrokken stoelen — stoelen met historie maar zonder actieve bezetter
+  // vandaag (vertrekdatum al gepasseerd). Herstellen zet de bezetting weer open.
+  const vertrokken = alleVasteStoelIds().map(id => {
+    const st = state.radiologen.find(r => r.id === id);
+    if (!st || bezettingOpDatum(id, vandaagIso())) return null;
+    const h = Array.isArray(st.bezetting_historie) ? st.bezetting_historie : [];
+    if (h.length === 0) return null;
+    let li = -1, bv = '';
+    h.forEach((e, i) => { const v = e.van || '0000-00-00'; if (li === -1 || v >= bv) { bv = v; li = i; } });
+    const e = h[li];
+    if (!e || !e.tot) return null;
+    return { id, code: e.code || id, achternaam: e.achternaam || '', tot: e.tot };
+  }).filter(Boolean);
+
+  if (vertrokken.length > 0) {
+    html += `
+      <div style="margin-top: 1.5rem;">
+        <div class="summary-label" style="margin-bottom: 6px;">Vertrokken stoelen</div>
+        <div class="card">
+          <p class="muted" style="margin: 0 0 10px;">De bezetter is vertrokken en de kolom is verdwenen. <b>Herstellen</b> trekt het vertrek in: de stoel wordt weer doorlopend actief en de kolom komt terug.</p>
+          ${vertrokken.map(v => `
+            <div style="display: grid; grid-template-columns: 50px 1fr 110px; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
+              <div style="font-weight: 500;">${v.code}</div>
+              <div class="muted" style="font-size: 13px;">${v.achternaam} <span style="font-size: 11px;">· weg sinds ${formatDatum(plusDagen(v.tot, 1), 'kort')}</span></div>
+              <button class="btn" style="font-size: 11px; padding: 6px 4px;" onclick="window.vertrekIntrekken('${v.id}')">Herstellen</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
 
   // Waarnemers-sectie
   html += `
@@ -375,9 +413,17 @@ window.opslaanParttime = async function() {
         const hist = Array.isArray(stoel?.bezetting_historie)
           ? stoel.bezetting_historie.map(e => ({ ...e }))
           : [];
-        const open = hist.find(e => !e.tot);
-        if (open) {
-          open.in_dienst = elId.value;
+        // Doel-entry: de open (lopende) entry, of — bij een gepland vertrek
+        // zonder open entry — de laatste entry. Zo voorkomen we een dubbele
+        // open entry.
+        let doel = hist.find(e => !e.tot);
+        if (!doel && hist.length > 0) {
+          let li = -1, bv = '';
+          hist.forEach((e, i) => { const v = e.van || '0000-00-00'; if (li === -1 || v >= bv) { bv = v; li = i; } });
+          doel = hist[li];
+        }
+        if (doel) {
+          doel.in_dienst = elId.value;
         } else {
           hist.push({
             voornaam: stoel?.voornaam || '',
@@ -951,6 +997,27 @@ window.vertrekDoorvoeren = async function(slotId) {
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Doorvoeren'; }
     alert('Opslaan mislukt: ' + (e.message || e));
+  }
+};
+
+window.vertrekIntrekken = async function(slotId) {
+  const stoel = state.radiologen.find(r => r.id === slotId);
+  if (!stoel) { alert('Stoel niet gevonden.'); return; }
+  const hist = Array.isArray(stoel.bezetting_historie) ? stoel.bezetting_historie.map(e => ({ ...e })) : [];
+  if (hist.length === 0) { alert('Geen bezetting om te herstellen.'); return; }
+  // Laatste (meest recente) entry zoeken.
+  let li = -1, bv = '';
+  hist.forEach((e, i) => { const v = e.van || '0000-00-00'; if (li === -1 || v >= bv) { bv = v; li = i; } });
+  if (li < 0 || !hist[li].tot) { alert('Deze stoel heeft geen vertrek om in te trekken.'); return; }
+  const e = hist[li];
+  if (!confirm(`Vertrek van ${e.code || slotId} (${e.achternaam || ''}) intrekken?\n\nDe stoel wordt weer doorlopend actief en de kolom komt terug.`)) return;
+  hist[li] = { ...e, tot: null };
+  try {
+    await setDoc(doc(db, 'radiologen', slotId), { bezetting_historie: hist }, { merge: true });
+    alert(`Vertrek van ${slotId} ingetrokken.`);
+    renderGebView();
+  } catch (err) {
+    alert('Herstellen mislukt: ' + (err.message || err));
   }
 };
 

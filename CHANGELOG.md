@@ -1,3 +1,14 @@
+## v3.27.103 — Vertrek herstellen / corrigeren
+
+### Wijzigingen
+- **Gepland vertrek (vertrekdatum nog niet gepasseerd)**: de stoel blijft zichtbaar met de melding "vertrekt per <datum>"; de Vertrek-knop wordt een **Intrekken**-knop waarmee je het geplande vertrek terugdraait.
+- **Vertrokken stoel (datum al gepasseerd)**: verschijnt in een nieuwe sectie **"Vertrokken stoelen"** met een **Herstellen**-knop; dat trekt het vertrek in en de kolom komt terug.
+- Intrekken/Herstellen zet de laatste bezetting-entry weer op lopend (`tot = null`); de bezetter is dan weer doorlopend actief.
+- **opslaanParttime** robuuster: bij een gepland vertrek (geen open entry) wordt de in-dienst datum op de laatste entry bijgewerkt i.p.v. een dubbele open entry aan te maken.
+- Versie 3.27.102 → 3.27.103 (config-basis, sw.js).
+
+---
+
 ## v3.27.102 — Flexibele vaste stoelen (toevoegen/opheffen, datum-correct)
 
 ### Wijzigingen
