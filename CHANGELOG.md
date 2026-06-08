@@ -1,3 +1,17 @@
+## v3.27.107 — Persoon-id toekenning aangescherpt
+
+### Probleem
+De eenmalige toekenning telde te ruim: lege W-stoelen (waarvan de 'code' standaard de slotnaam is) en restdocumenten werden meegeteld (bv. 17 i.p.v. 10).
+
+### Wijziging
+- Toekenning gebeurt nu alleen voor bezetters met een **echte achternaam**. Lege slots en kale restdocumenten worden overgeslagen.
+- `opslaanInvallers` kent alleen een persoon-id toe als er een achternaam is ingevuld (niet bij een kale slotnaam).
+- Tekst en telling spreken nu over "bezetters" i.p.v. "stoelen".
+
+Versie 3.27.106 → 3.27.107 (config-basis, sw.js).
+
+---
+
 ## v3.27.106 — Schoon overnemen bij vervang-wissel
 
 ### Wijziging

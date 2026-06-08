@@ -1,12 +1,10 @@
-Rooster v3.27.106 — Release notes
+Rooster v3.27.107 — Release notes
 ==================================
 
-SCHOON OVERNEMEN BIJ VERVANG-WISSEL
+PERSOON-ID TOEKENNING AANGESCHERPT
 -----------------------------
-Als een waarnemer een bestaande stoel overneemt (→ Vast op een bestaande
-stoel), toont die stoel vanaf de ingangsdatum nog uitsluitend de indeling van
-de nieuwe bezetter. Eventuele toekomstige toewijzingen van de vertrekker die op
-"lege" dagen bleven staan, worden nu gewist — geen mengvormen meer.
+De eenmalige toekenning telde te ruim (lege W-stoelen en restdocumenten werden
+meegeteld). Nu krijgen alleen bezetters met een echte achternaam een persoon-id.
+Je verwacht 8 vaste + de actieve waarnemers = de werkelijke bezetters.
 
-Geldt ook voor vakantie-V. Bij het aanmaken van een NIEUWE stoel verandert er
-niets (die is al leeg).
+Lege slots en kale restdocumenten worden overgeslagen.

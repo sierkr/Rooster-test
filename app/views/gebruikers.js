@@ -403,7 +403,9 @@ window.initialiseerPersoonIds = async function() {
     if (hist.length > 0) {
       const perKey = {};
       hist.forEach(e => {
-        if (!e.persoon_id) {
+        // Alleen entries met een echte naam zijn een persoon. Lege/kale entries
+        // (bv. een vrijgekomen stoel) krijgen géén persoon-id.
+        if (!e.persoon_id && (e.achternaam || '').trim()) {
           const k = `${(e.achternaam || '').toLowerCase()}|${(e.code || '').toLowerCase()}`;
           if (!perKey[k]) perKey[k] = nieuwPersoonId();
           e.persoon_id = perKey[k];
@@ -412,7 +414,9 @@ window.initialiseerPersoonIds = async function() {
       });
       const opn = hist.find(e => !e.tot) || hist[hist.length - 1];
       if (opn && opn.persoon_id && stoel.persoon_id !== opn.persoon_id) { topPid = opn.persoon_id; gewijzigd = true; }
-    } else if ((stoel.code || stoel.achternaam) && !stoel.persoon_id) {
+    } else if ((stoel.achternaam || '').trim() && !stoel.persoon_id) {
+      // Stoel zonder historie (bv. W-stoel): alleen als er een echte bezetter
+      // is. Een leeg slot waarvan de 'code' standaard de slotnaam is, telt niet.
       topPid = nieuwPersoonId();
       gewijzigd = true;
     }
@@ -422,13 +426,13 @@ window.initialiseerPersoonIds = async function() {
       teDoen.push({ id: stoel.id, upd });
     }
   });
-  if (teDoen.length === 0) { alert("Alle bezetters hebben al een persoon-id."); return; }
-  if (!confirm(`${teDoen.length} stoel(en) krijgen een persoon-id. Doorgaan?`)) return;
+  if (teDoen.length === 0) { alert("Alle bezetters met een naam hebben al een persoon-id."); return; }
+  if (!confirm(`${teDoen.length} bezetter(s) krijgen een persoon-id. Doorgaan?`)) return;
   try {
     for (const t of teDoen) {
       await setDoc(doc(db, 'radiologen', t.id), t.upd, { merge: true });
     }
-    alert(`Persoon-id's toegekend aan ${teDoen.length} stoel(en).`);
+    alert(`Persoon-id's toegekend aan ${teDoen.length} bezetter(s).`);
     renderGebView();
   } catch (e) {
     alert('Mislukt: ' + (e.message || e));
@@ -504,9 +508,10 @@ window.opslaanInvallers = async function() {
       const update = {
         id: slotId, code: code || slotId, achternaam: achternaam || '', actief, isSlot: true,
       };
-      // Bezette W-stoel zonder persoon_id krijgt er één, zodat de identiteit
-      // meeloopt als deze waarnemer later vast in dienst komt.
-      if ((code || achternaam) && !stoel?.persoon_id) update.persoon_id = nieuwPersoonId();
+      // Bezette W-stoel (échte naam ingevuld) zonder persoon_id krijgt er één,
+      // zodat de identiteit meeloopt als deze waarnemer later vast in dienst
+      // komt. Een leeg slot (alleen een kale slotnaam) krijgt er géén.
+      if (achternaam && !stoel?.persoon_id) update.persoon_id = nieuwPersoonId();
       await setDoc(doc(db, 'radiologen', slotId), update, { merge: true });
     }
     alert('Waarnemers opgeslagen.');
