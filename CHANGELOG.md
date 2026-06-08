@@ -1,3 +1,22 @@
+## v3.27.108 — Export volgt de app exact (regel-gedreven formules)
+
+### Probleem
+De Excel-export bakte vaste aannames in (norm 5/4, vaste Aantal-drempels, indicator-set, V/K-kleur). Na het wijzigen van regels, functies of kleuren in de app klopte de Excel niet meer.
+
+### Oplossing — alles op exporttijd uit de app afgeleid
+- **Aantal = werkvloerbezetting**: telt nu de codes met de werkvloer-vlag uit `state.functies` (i.p.v. de indicator-set).
+- **Normen uit de bezetting-regels**: de rode datum-markering en de Aantal-kleur volgen nu de actieve `bezetting`-regels (per dag/code/aantal) gecombineerd met de verplichte functies. Geen vaste 5/4 meer.
+- **Indicatoren tonen een tekort**: een indicator-kolom toont de code zolang de bezetting op die weekdag onder de vereiste (regel-)norm zit — niet alleen bij volledig ontbreken. Per weekdag wordt de vereiste op de spot in de formule gezet.
+- **Celkleuren (incl. V/K) volledig uit de functiekleur** van de app; de vaste lichtgeel-markering voor V/K is vervallen. Fallback-tabel alleen nog voor codes zonder ingestelde kleur.
+- **Verborgen `_regels`-blad**: legt de gebruikte functies (kleur/werkvloer/verplicht) en normen vast, puur ter controle.
+- **Vangnet**: export stopt met een melding als de functies nog niet geladen zijn.
+
+Layout (kolommen, kleuren-aanpak, weekendarcering, bevroren rij/kolommen, notities, `_kolommen`-blad) blijft ongewijzigd. `fullCalcOnLoad` blijft aan zodat Excel bij openen herberekent.
+
+Versie 3.27.107 → 3.27.108 (config-basis, sw.js).
+
+---
+
 ## v3.27.107 — Persoon-id toekenning aangescherpt
 
 ### Probleem

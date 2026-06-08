@@ -1,10 +1,18 @@
-Rooster v3.27.107 — Release notes
+Rooster v3.27.108 — Release notes
 ==================================
 
-PERSOON-ID TOEKENNING AANGESCHERPT
+EXPORT VOLGT DE APP EXACT (REGEL-GEDREVEN)
 -----------------------------
-De eenmalige toekenning telde te ruim (lege W-stoelen en restdocumenten werden
-meegeteld). Nu krijgen alleen bezetters met een echte achternaam een persoon-id.
-Je verwacht 8 vaste + de actieve waarnemers = de werkelijke bezetters.
+De Excel-export leidt formules, normen, indicatoren en kleuren nu op exporttijd
+af uit de actuele app-instellingen:
 
-Lege slots en kale restdocumenten worden overgeslagen.
+- Aantal = werkvloerbezetting (codes met de werkvloer-vlag).
+- Rode datum + Aantal-kleur volgen de bezetting-regels (per dag/code/aantal) +
+  verplichte functies. Geen vaste 5/4-norm meer.
+- Indicator-kolommen tonen een code zolang er een tekort is t.o.v. de vereiste
+  bezetting voor die weekdag.
+- Celkleuren (incl. V/K) komen uit de functiekleur in de app.
+- Verborgen blad "_regels" legt de gebruikte functies en normen vast.
+
+De layout blijft gelijk. Pas je in de app regels/functies/kleuren aan, dan
+weerspiegelt een nieuwe export dat automatisch.
