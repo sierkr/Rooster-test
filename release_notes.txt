@@ -1,23 +1,17 @@
-Rooster v3.27.104 — Release notes
+Rooster v3.27.105 — Release notes
 ==================================
 
-PERSOON-ID (NIVEAU 1) + LOOPBAAN
+EXPORT/IMPORT BESTAND-BESTENDIG (STABIEL STOEL-ID)
 -----------------------------
-Een persoon is nu over stoelen heen te volgen (waarnemer die vast in dienst
-komt, of een stoelwissel), los van code-hergebruik.
+De Excel-koppeling is nu wissel-bestendig.
 
-- Elke bezetting krijgt een stabiel persoon_id dat meeloopt bij wissels.
-- Niveau 1: geen aparte personen-lijst; naam/code blijven op de bezetting
-  staan, persoon_id groepeert ze. Later uitbreidbaar zonder dataverlies.
-- Knop "Persoon-id's toekennen" (Gebruikers-tab): ken eenmalig id's toe aan de
-  huidige bezetters. Idempotent — opnieuw klikken kan geen kwaad.
-- Loopbaan-weergave in de Radioloog-tab (alleen beheer): per persoon de
-  periodes over alle stoelen (stoel, code, van–tot).
+- Export legt een verborgen blad "_kolommen" vast: welke code bij welke stoel
+  hoort op het moment van export. Het zichtbare blad blijft gelijk.
+- Import gebruikt die stabiele stoel-id; valt terug op de code voor oudere
+  bestanden. Een oude kolom (bv. 'BL') landt zo na een wissel nog steeds op de
+  juiste stoel — geen stil dataverlies meer.
+- Niet-koppelbare of ontbrekende kolommen worden nu als WAARSCHUWING getoond in
+  het importrapport, in plaats van stil overgeslagen.
 
-GEEN terugwerkende migratie: de huidige situatie is stabiel, dus id's worden
-vanaf nu toegekend.
-
-EERSTE GEBRUIK
------------------------------
-Klik eenmalig op "Persoon-id's toekennen" in de Gebruikers-tab. Daarna loopt
-alles automatisch mee bij toekomstige wissels.
+Oudere Excel-bestanden (zonder verborgen blad) blijven werken via de
+code-fallback, nu mét waarschuwing waar nodig.

@@ -631,6 +631,18 @@ export async function actExportJaar(jaar, naamParam) {
     // Activiteit-sheet tijdelijk uitgeschakeld (formule-bugs in sheet2)
     // voegActiviteitSheetToe(wb, sheetNaam, radKolommen, dynKolomMap, COL_DIENST, excelRij - 1);
 
+    // ---- Verborgen kolom-mapping (code → stoel-id) --------------------------
+    // Vastgelegd zoals geldig op het moment van export. Hiermee koppelt de
+    // import elke kolom op de juiste, stabiele stoel — ook nadat er later een
+    // wissel is geweest. Ontbreekt dit blad, dan valt de import terug op de code.
+    const mapWs = wb.addWorksheet('_kolommen');
+    mapWs.state = 'hidden';
+    mapWs.columns = [
+      { header: 'Code', key: 'code', width: 12 },
+      { header: 'StoelId', key: 'stoel', width: 12 },
+    ];
+    radKolommen.forEach(code => { mapWs.addRow({ code, stoel: dynKolomMap[code] }); });
+
     // ---- Downloaden ---------------------------------------------------------
     const buffer = await wb.xlsx.writeBuffer();
     const defaultNaam = `Indeling_${jaar}.xlsx`;

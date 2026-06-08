@@ -1,3 +1,20 @@
+## v3.27.105 — Export/import op stabiel stoel-id + waarschuwingen
+
+### Probleem dat dit oplost
+De koppeling Excel↔stoel liep via de huidige code (initialen). Na een wissel mapte een oude code (bv. 'BL') nergens meer op, waardoor die kolom bij import **stil werd overgeslagen** (dataverlies).
+
+### Oplossing
+- **Export** schrijft een verborgen blad **`_kolommen`** met de mapping code → stoel-id, zoals geldig op het moment van export. Het hoofdblad blijft ongewijzigd leesbaar (codes als kop).
+- **Import** koppelt elke kolom bij voorkeur via die stabiele stoel-id uit het bestand; **valt terug op de code** (huidige + vaste mapping) voor vreemde/oude bestanden. Zo komt elke kolom op de juiste stoel terecht, ook na een wissel.
+- **Waarschuwingen** i.p.v. stil overslaan: een kolom die niet gekoppeld kan worden, wordt expliciet gemeld ("kolom 'X' is NIET geïmporteerd"). Bij een app-bestand wordt ook een ontbrekende verwachte kolom gemeld.
+- Radioloog-kolommen worden nu strikt uit de zone vóór de Dienst-kolom gelezen, zodat Aantal/indicator-kolommen geen valse waarschuwingen geven.
+- Versie 3.27.104 → 3.27.105 (config-basis, sw.js).
+
+### Compatibiliteit
+Code-fallback blijft behouden: oudere Excel-bestanden zonder `_kolommen`-blad importeren zoals voorheen, nu mét waarschuwing bij niet-herkende kolommen.
+
+---
+
 ## v3.27.104 — Persoon-id (Niveau 1) + loopbaan-weergave
 
 ### Doel
