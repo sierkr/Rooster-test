@@ -181,6 +181,49 @@ export function isVasteStoel(id) {
   return (state.radiologen || []).some(r => r.id === id && r.vaste_stoel === true && !SLOTS.includes(id));
 }
 
+// ==== Persoon-id (Niveau 1) =================================================
+// Een stabiel persoon-id identificeert een persoon over stoelen heen. Het leeft
+// op de bezetting_historie-entries (en top-level op stoelen zonder historie,
+// zoals W-stoelen). Bij een wissel/→Vast loopt het persoon_id mee, zodat het
+// verleden van een persoon herleidbaar is — ook als codes (initialen) later
+// hergebruikt worden. Niveau 1 = geen aparte 'personen'-collectie; de
+// stamgegevens (naam/code) blijven gedenormaliseerd op de entries staan.
+// Een persoon_id wordt NOOIT hergebruikt.
+export function nieuwPersoonId() {
+  return 'P' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// Fallback-sleutel als een entry (nog) geen persoon_id heeft.
+export function persoonFallbackKey(achternaam, code) {
+  return `${(achternaam || '').toLowerCase()}|${(code || '').toLowerCase()}`;
+}
+
+// Verzamelt de loopbaan van één persoon: alle bezetting-periodes over álle
+// stoelen heen. Match op persoon_id wanneer aanwezig, anders op de
+// fallback-sleutel (achternaam|code). Periodes gesorteerd op van-datum.
+export function loopbaanVoorPersoon(pid, fallbackKey) {
+  const periodes = [];
+  (state.radiologen || []).forEach(stoel => {
+    const hist = Array.isArray(stoel.bezetting_historie) ? stoel.bezetting_historie : [];
+    if (hist.length > 0) {
+      hist.forEach(e => {
+        const match = (pid && e.persoon_id)
+          ? e.persoon_id === pid
+          : persoonFallbackKey(e.achternaam, e.code) === fallbackKey;
+        if (match) periodes.push({ stoelId: stoel.id, code: e.code || stoel.id, achternaam: e.achternaam || '', van: e.van || null, tot: e.tot || null });
+      });
+    } else if (stoel.code || stoel.achternaam) {
+      // Stoel zonder historie (bv. W-stoel): huidige bezetter als open periode.
+      const match = (pid && stoel.persoon_id)
+        ? stoel.persoon_id === pid
+        : persoonFallbackKey(stoel.achternaam, stoel.code) === fallbackKey;
+      if (match) periodes.push({ stoelId: stoel.id, code: stoel.code || stoel.id, achternaam: stoel.achternaam || '', van: null, tot: null });
+    }
+  });
+  periodes.sort((a, b) => (a.van || '0000-00-00') < (b.van || '0000-00-00') ? -1 : 1);
+  return periodes;
+}
+
 // Vaste radiologen op een gegeven datum. Een stoel verschijnt alleen als er op
 // die datum een actieve bezetter is (leeg = geen kolom). Het aantal kolommen
 // volgt dus per datum uit de bezetting (8 nu, meer/minder na toevoegen/opheffen).

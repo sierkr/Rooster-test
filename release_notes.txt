@@ -1,15 +1,23 @@
-Rooster v3.27.103 — Release notes
+Rooster v3.27.104 — Release notes
 ==================================
 
-VERTREK HERSTELLEN / CORRIGEREN
+PERSOON-ID (NIVEAU 1) + LOOPBAAN
 -----------------------------
-Een (foutief) vertrek is nu via de app terug te draaien:
+Een persoon is nu over stoelen heen te volgen (waarnemer die vast in dienst
+komt, of een stoelwissel), los van code-hergebruik.
 
-- Vertrekdatum nog niet gepasseerd: de stoel staat nog in de lijst met
-  "vertrekt per <datum>"; klik op "Intrekken" om het vertrek te annuleren.
-- Vertrekdatum al gepasseerd: de stoel staat in de nieuwe sectie "Vertrokken
-  stoelen"; klik op "Herstellen" om de kolom terug te halen.
+- Elke bezetting krijgt een stabiel persoon_id dat meeloopt bij wissels.
+- Niveau 1: geen aparte personen-lijst; naam/code blijven op de bezetting
+  staan, persoon_id groepeert ze. Later uitbreidbaar zonder dataverlies.
+- Knop "Persoon-id's toekennen" (Gebruikers-tab): ken eenmalig id's toe aan de
+  huidige bezetters. Idempotent — opnieuw klikken kan geen kwaad.
+- Loopbaan-weergave in de Radioloog-tab (alleen beheer): per persoon de
+  periodes over alle stoelen (stoel, code, van–tot).
 
-Intrekken/Herstellen maakt de bezetter weer doorlopend actief. Een verkeerde
-datum los je op door in te trekken en daarna Vertrek opnieuw met de juiste
-datum uit te voeren.
+GEEN terugwerkende migratie: de huidige situatie is stabiel, dus id's worden
+vanaf nu toegekend.
+
+EERSTE GEBRUIK
+-----------------------------
+Klik eenmalig op "Persoon-id's toekennen" in de Gebruikers-tab. Daarna loopt
+alles automatisch mee bij toekomstige wissels.

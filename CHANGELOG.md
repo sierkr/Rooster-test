@@ -1,3 +1,26 @@
+## v3.27.104 — Persoon-id (Niveau 1) + loopbaan-weergave
+
+### Doel
+Een persoon over stoelen heen herleidbaar maken (waarnemer → vaste stoel, of stoelwissel), onafhankelijk van code-hergebruik.
+
+### Model (Niveau 1 — bewust gekozen, gedocumenteerd)
+- Nieuw veld **`persoon_id`** op elke `bezetting_historie`-entry (en top-level op stoelen zonder historie, zoals W-stoelen).
+- **Niveau 1 = GEEN aparte `personen`-collectie.** Stamgegevens (naam/code) blijven gedenormaliseerd op de entries. `persoon_id` groepeert ze tot één persoon. Later optioneel uitbreidbaar naar Niveau 2 (register) zonder dataverlies.
+- Een `persoon_id` wordt **nooit hergebruikt**; codes (initialen) mogen wel terugkomen.
+- **Geen terugwerkende migratie**: de situatie is stabiel (8 stoelen/8 radiologen, 2 waarnemers). Persoon-id wordt "vanaf nu" toegekend.
+
+### Wijzigingen
+- **helpers.js**: `nieuwPersoonId()`, `persoonFallbackKey()`, `loopbaanVoorPersoon()` (verzamelt periodes per persoon over alle stoelen).
+- **Persoon_id loopt mee** bij Wissel (nieuwe identiteit → vers id), bij →Vast/stoelwissel/nieuwe stoel (bestaand id verhuist mee via `migreerBezetting`), en bij waarnemer-opslag (top-level id).
+- **Knop "Persoon-id's toekennen"** (Gebruikers-tab, onder vaste radiologen): eenmalige, idempotente toekenning aan de huidige bezetters.
+- **Loopbaan-weergave** geïntegreerd in de Radioloog-tab (read-only, alleen beheer): periodes per persoon over alle stoelen (stoel · code · van–tot). Werkt met fallback op naam+code zolang persoon-id's nog niet zijn toegekend.
+- Versie 3.27.103 → 3.27.104 (config-basis, sw.js).
+
+### Indeling blijft per stoel
+De dagindeling blijft per stoel-id opgeslagen. Persoon-id is een koppeling (persoon → stoel+periode → indeling van die stoel), geen nieuwe opslag van indeling.
+
+---
+
 ## v3.27.103 — Vertrek herstellen / corrigeren
 
 ### Wijzigingen

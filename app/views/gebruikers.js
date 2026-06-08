@@ -5,7 +5,7 @@ import { state, SLOTS, VASTE_RAD_IDS, VASTE_BEHEERDER_EMAIL } from '../state.js'
 import {
   vasteRads, vasteRadsOpDatum, actieveInvallers, radiologenMap, parttimeFactor, defaultPermissies,
   magGebruikersBeheren, genereerWachtwoord, bezettingOpDatum, vandaagIso, plusDagen, formatDatum,
-  alleVasteStoelIds, isVasteStoel,
+  alleVasteStoelIds, isVasteStoel, nieuwPersoonId,
 } from '../helpers.js';
 import { STANDAARD_WACHTWOORD } from '../helpers.js';
 import { openSheet, closeSheet } from '../sheets.js';
@@ -117,6 +117,7 @@ export async function renderGebView() {
           `;
         }).join('')}
         <button id="btnOpslaanVast" class="btn" disabled style="width: 100%; margin-top: 10px; opacity: 0.5; cursor: not-allowed;" onclick="window.opslaanParttime()">Opslaan</button>
+        <button class="btn" style="width: 100%; margin-top: 6px; font-size: 11px; opacity: 0.85;" onclick="window.initialiseerPersoonIds()" title="Eenmalig: ken persoon-id's toe aan de huidige bezetters">Persoon-id's toekennen</button>
       </div>
     </div>
   `;
@@ -390,6 +391,50 @@ window.gebMarkDirty = function(sectie) {
   btn.style.cursor = 'pointer';
 };
 
+// Eenmalig: ken een persoon_id toe aan alle huidige bezetters die er nog geen
+// hebben. Idempotent — bestaande persoon_id's blijven ongemoeid. Vaste stoelen
+// via hun bezetting-entries (+ top-level), W-stoelen via top-level.
+window.initialiseerPersoonIds = async function() {
+  const teDoen = [];
+  (state.radiologen || []).forEach(stoel => {
+    const hist = Array.isArray(stoel.bezetting_historie) ? stoel.bezetting_historie.map(e => ({ ...e })) : [];
+    let gewijzigd = false;
+    let topPid = stoel.persoon_id || null;
+    if (hist.length > 0) {
+      const perKey = {};
+      hist.forEach(e => {
+        if (!e.persoon_id) {
+          const k = `${(e.achternaam || '').toLowerCase()}|${(e.code || '').toLowerCase()}`;
+          if (!perKey[k]) perKey[k] = nieuwPersoonId();
+          e.persoon_id = perKey[k];
+          gewijzigd = true;
+        }
+      });
+      const opn = hist.find(e => !e.tot) || hist[hist.length - 1];
+      if (opn && opn.persoon_id && stoel.persoon_id !== opn.persoon_id) { topPid = opn.persoon_id; gewijzigd = true; }
+    } else if ((stoel.code || stoel.achternaam) && !stoel.persoon_id) {
+      topPid = nieuwPersoonId();
+      gewijzigd = true;
+    }
+    if (gewijzigd) {
+      const upd = { persoon_id: topPid };
+      if (hist.length > 0) upd.bezetting_historie = hist;
+      teDoen.push({ id: stoel.id, upd });
+    }
+  });
+  if (teDoen.length === 0) { alert("Alle bezetters hebben al een persoon-id."); return; }
+  if (!confirm(`${teDoen.length} stoel(en) krijgen een persoon-id. Doorgaan?`)) return;
+  try {
+    for (const t of teDoen) {
+      await setDoc(doc(db, 'radiologen', t.id), t.upd, { merge: true });
+    }
+    alert(`Persoon-id's toegekend aan ${teDoen.length} stoel(en).`);
+    renderGebView();
+  } catch (e) {
+    alert('Mislukt: ' + (e.message || e));
+  }
+};
+
 window.opslaanParttime = async function() {
   try {
     for (const r of vasteRads()) {
@@ -432,6 +477,7 @@ window.opslaanParttime = async function() {
             vakantierecht: typeof stoel?.vakantierecht === 'number' ? stoel.vakantierecht : 40,
             parttime_factor: typeof stoel?.parttime_factor === 'number' ? stoel.parttime_factor : 1,
             in_dienst: elId.value,
+            persoon_id: stoel?.persoon_id || nieuwPersoonId(),
             van: null, tot: null,
           });
         }
@@ -454,9 +500,14 @@ window.opslaanInvallers = async function() {
       const code = document.getElementById('inv_code_' + slotId).value.trim();
       const achternaam = document.getElementById('inv_naam_' + slotId).value.trim();
       const actief = document.getElementById('inv_act_' + slotId).classList.contains('aan');
-      await setDoc(doc(db, 'radiologen', slotId), {
+      const stoel = state.radiologen.find(r => r.id === slotId);
+      const update = {
         id: slotId, code: code || slotId, achternaam: achternaam || '', actief, isSlot: true,
-      }, { merge: true });
+      };
+      // Bezette W-stoel zonder persoon_id krijgt er één, zodat de identiteit
+      // meeloopt als deze waarnemer later vast in dienst komt.
+      if ((code || achternaam) && !stoel?.persoon_id) update.persoon_id = nieuwPersoonId();
+      await setDoc(doc(db, 'radiologen', slotId), update, { merge: true });
     }
     alert('Waarnemers opgeslagen.');
   } catch (e) {
@@ -789,12 +840,15 @@ window.opslaanWissel = async function(slotId) {
     if (!e.tot) return { ...e, tot: dagVoor };
     return e;
   });
+  // Nieuwe persoon op deze stoel = nieuwe identiteit → vers persoon_id.
+  const nieuwPid = nieuwPersoonId();
   // Voeg nieuwe entry toe.
   nieuweHist.push({
     voornaam, achternaam, code,
     vakantierecht: vr,
     parttime_factor: pf,
     in_dienst: inDienst || null,
+    persoon_id: nieuwPid,
     van: datum,
     tot: null,
   });
@@ -806,6 +860,7 @@ window.opslaanWissel = async function(slotId) {
       vakantierecht: vr,
       parttime_factor: pf,
       in_dienst: inDienst || null,
+      persoon_id: nieuwPid,
       actief: true,
       isSlot: SLOTS.includes(slotId),
       bezetting_historie: nieuweHist,
@@ -980,6 +1035,7 @@ window.vertrekDoorvoeren = async function(slotId) {
       vakantierecht: typeof stoel.vakantierecht === 'number' ? stoel.vakantierecht : 40,
       parttime_factor: typeof stoel.parttime_factor === 'number' ? stoel.parttime_factor : 1,
       in_dienst: stoel.in_dienst || null,
+      persoon_id: stoel.persoon_id || null,
       van: null, tot: dagVoor,
     });
   } else {
@@ -1037,11 +1093,14 @@ async function migreerBezetting(vanSlot, naarSlot, datum, inDienst) {
       vakantierecht: typeof vanStoel.vakantierecht === 'number' ? vanStoel.vakantierecht : 40,
       parttime_factor: typeof vanStoel.parttime_factor === 'number' ? vanStoel.parttime_factor : 1,
       in_dienst: vanStoel.in_dienst || null,
+      persoon_id: vanStoel.persoon_id || null,
       van: null, tot: null,
     });
   }
   const persoon = vanHist.find(e => !e.tot) || vanHist[vanHist.length - 1];
   if (!persoon) throw new Error('Geen persoon gevonden in ' + vanSlot);
+  // Persoon_id loopt mee zodat de persoon over stoelen heen herleidbaar blijft.
+  const pid = persoon.persoon_id || vanStoel?.persoon_id || nieuwPersoonId();
 
   // 2. Bezetting van naarSlot
   const naarStoel = state.radiologen.find(r => r.id === naarSlot);
@@ -1068,6 +1127,7 @@ async function migreerBezetting(vanSlot, naarSlot, datum, inDienst) {
     vakantierecht: typeof persoon.vakantierecht === 'number' ? persoon.vakantierecht : 40,
     parttime_factor: typeof persoon.parttime_factor === 'number' ? persoon.parttime_factor : 1,
     in_dienst: inDienst || persoon.in_dienst || null,
+    persoon_id: pid,
     van: datum, tot: null,
   });
 
@@ -1081,6 +1141,7 @@ async function migreerBezetting(vanSlot, naarSlot, datum, inDienst) {
     vakantierecht: persoon.vakantierecht ?? 40,
     parttime_factor: persoon.parttime_factor ?? 1,
     in_dienst: inDienst || persoon.in_dienst || null,
+    persoon_id: pid,
     bezetting_historie: naarHistNieuw,
   }, { merge: true });
   batch1.set(doc(db, 'radiologen', vanSlot), {
@@ -1088,6 +1149,7 @@ async function migreerBezetting(vanSlot, naarSlot, datum, inDienst) {
     code: '', voornaam: '', achternaam: '',
     actief: false,
     in_dienst: null,
+    persoon_id: null,
     isSlot: SLOTS.includes(vanSlot),
     bezetting_historie: vanHistNieuw,
   }, { merge: true });
