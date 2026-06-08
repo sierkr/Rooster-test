@@ -1,3 +1,18 @@
+## v3.27.106 — Schoon overnemen bij vervang-wissel
+
+### Wijziging
+Bij "→ Vast" op een **bestaande** stoel toont de doelstoel vanaf de ingangsdatum nog uitsluitend de indeling van de nieuwe bezetter:
+- Dagen waarop de waarnemer een toewijzing had → die verhuist mee (overschrijft een rest van de vertrekker).
+- Dagen waarop de waarnemer niets had maar de doelstoel nog een toewijzing van de vertrekker → die rest wordt **gewist**. Geen mengvormen meer.
+- Geldt ook voor vakantie-V. Diensten worden zoals voorheen hernoemd (vanSlot → naarSlot).
+- Bij de **nieuwe-stoel**-route is dit automatisch een no-op (de stoel is leeg).
+
+Bevestigingstekst bij vervangen vermeldt nu expliciet dat resten van de vorige bezetter worden gewist.
+
+Versie 3.27.105 → 3.27.106 (config-basis, sw.js).
+
+---
+
 ## v3.27.105 — Export/import op stabiel stoel-id + waarschuwingen
 
 ### Probleem dat dit oplost

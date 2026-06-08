@@ -967,7 +967,7 @@ window.maakVastDoorvoeren = async function(wSlotId) {
 
   const bevestiging = nieuweStoel
     ? `Maak ${wSlotId} vast op een NIEUWE stoel per ${formatDatum(datum, 'kort')}?\n\nEr komt een kolom bij. Toewijzingen, vakantie-V, diensten, wensen en gebruikerskoppeling vanaf die datum verhuizen mee.`
-    : `Maak ${wSlotId} vast in ${naarSlot} per ${formatDatum(datum, 'kort')}?\n\nToewijzingen, vakantie-V, diensten, wensen en gebruikerskoppeling vanaf die datum verhuizen mee. Niet ongedaan te maken zonder handmatig terugdraaien.`;
+    : `Maak ${wSlotId} vast in ${naarSlot} per ${formatDatum(datum, 'kort')}?\n\nDe doelstoel toont vanaf die datum uitsluitend de indeling van ${wSlotId} (eventuele resten van de vorige bezetter worden gewist). Toewijzingen, vakantie-V, diensten, wensen en gebruikerskoppeling verhuizen mee. Niet ongedaan te maken zonder handmatig terugdraaien.`;
   if (!confirm(bevestiging)) return;
 
   const btn = document.querySelector('#sheetBody .btn-primary');
@@ -1155,22 +1155,41 @@ async function migreerBezetting(vanSlot, naarSlot, datum, inDienst) {
   }, { merge: true });
   await batch1.commit();
 
-  // 4. Migreer indelingen vanaf datum: rename van → naar in toewijzingen, vakantie_v, dienst.
+  // 4. Migreer indelingen vanaf datum. "Schoon overnemen": de doelstoel toont
+  // vanaf de ingangsdatum uitsluitend de indeling van de nieuwe bezetter.
+  // - Had de waarnemer (vanSlot) op een dag een toewijzing → die verhuist naar
+  //   de doelstoel (overschrijft een eventuele rest van de vertrekker).
+  // - Had de waarnemer niets, maar de doelstoel wél (rest van de vertrekker) →
+  //   die rest wordt gewist. Zo blijven er geen mengvormen staan.
+  // Bij een nieuwe (lege) stoel is dit automatisch een no-op.
   const updates = [];
   Object.values(state.indelingMap).forEach(dag => {
     if (!dag?.datum || dag.datum < datum) return;
     const upd = { datum: dag.datum };
     let raak = false;
-    if (dag.toewijzingen && dag.toewijzingen[vanSlot]) {
+
+    const vanToew  = dag.toewijzingen && dag.toewijzingen[vanSlot];
+    const naarToew = dag.toewijzingen && (naarSlot in dag.toewijzingen);
+    if (vanToew) {
       upd[`toewijzingen.${naarSlot}`] = dag.toewijzingen[vanSlot];
       upd[`toewijzingen.${vanSlot}`] = deleteField();
       raak = true;
+    } else if (naarToew) {
+      upd[`toewijzingen.${naarSlot}`] = deleteField();
+      raak = true;
     }
-    if (dag.vakantie_v && (vanSlot in dag.vakantie_v)) {
+
+    const vanVk  = dag.vakantie_v && (vanSlot in dag.vakantie_v);
+    const naarVk = dag.vakantie_v && (naarSlot in dag.vakantie_v);
+    if (vanVk) {
       upd[`vakantie_v.${naarSlot}`] = dag.vakantie_v[vanSlot];
       upd[`vakantie_v.${vanSlot}`] = deleteField();
       raak = true;
+    } else if (naarVk) {
+      upd[`vakantie_v.${naarSlot}`] = deleteField();
+      raak = true;
     }
+
     if (dag.dienst) {
       ['dag','avond','nacht'].forEach(s => {
         if (dag.dienst[s] === vanSlot) {
