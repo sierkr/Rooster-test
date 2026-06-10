@@ -1,3 +1,16 @@
+## v3.27.110 — Beheerdershandleiding bijgewerkt
+
+### Wijziging
+- Help-bestand `help/beheerder.html` geactualiseerd: datum/versie (juni 2026 · 3.27.110) en de uitgebreide beheerders-opties.
+- Nieuw/bijgewerkt beschreven: flexibele stoelen (toevoegen/opheffen, max 12, anciënniteit-volgorde), "Wissel"/→Vast met schoon overnemen, "Vertrek" + intrekken/herstellen ("Vertrokken stoelen"), persoon-id toekennen, loopbaan-weergave.
+- Export-sectie: regel-gedreven normen (geen vaste 5/4 meer), werkvloer = Aantal, indicator-monitor, celkleur uit functiekleur incl. live recolor, verborgen bladen `_kolommen` en `_regels`.
+- Import-sectie: koppeling via stabiel stoel-id met code-fallback, waarschuwingen i.p.v. stil overslaan.
+- Korte notitie over de testomgeving (oranje balk, eigen database).
+
+Alleen documentatie + versiebump. Versie 3.27.109 → 3.27.110 (config-basis, sw.js).
+
+---
+
 ## v3.27.109 — Werkvloer-monitor terug, kleur-recolor & vakantie-waarschuwing
 
 ### Wijzigingen

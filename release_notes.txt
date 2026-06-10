@@ -1,13 +1,17 @@
-Rooster v3.27.109 — Release notes
+Rooster v3.27.110 — Release notes
 ==================================
 
-WERKVLOER-MONITOR, KLEUR-RECOLOR & VAKANTIE-WAARSCHUWING
+BEHEERDERSHANDLEIDING BIJGEWERKT
 -----------------------------
-- Indicator-kolommen tonen weer alle werkvloer-functies per dag (de per-dag-
-  monitor van weleer), met de regel-normen eroverheen.
-- De datum/Aantal worden alleen rood op de echte app-criteria (verplichte
-  functies + bezetting-regels), zodat een normale dag niet onnodig rood wordt.
-- Een cel die je in Excel naar een functiecode wijzigt, krijgt nu weer de juiste
-  kleur — ook varianten als .WB, 3W of 5B.
-- Geef je iedereen op een dag vakantie, dan lichten alle werkvloer-indicatoren
-  rood op als waarschuwing.
+De help (help/beheerder.html) is geactualiseerd naar de huidige app:
+
+- Datum/versie: juni 2026 · 3.27.110.
+- Stoelbeheer: stoelen toevoegen/opheffen, "Wissel"/→Vast met schoon overnemen,
+  "Vertrek" met intrekken/herstellen.
+- Persoon-id toekennen en de loopbaan-weergave.
+- Export: regel-gedreven normen (geen vaste 5/4), werkvloer-monitor, kleuren uit
+  de functiekleur, verborgen bladen _kolommen en _regels.
+- Import: koppeling via stabiel stoel-id met code-fallback en waarschuwingen.
+- Notitie over de testomgeving.
+
+Alleen documentatie; geen functionele codewijziging.
