@@ -7,7 +7,7 @@
 //  - Open wens die nu matcht met de geïmporteerde code → status 'verwerkt'
 //  - Verwerkte wens die nu gebroken wordt door de import → status terug naar 'open'
 import { doc, writeBatch, updateDoc, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { db } from './firebase-init.js';
+import { db, IS_TEST_DB } from './firebase-init.js';
 import { state, DAGEN_NL } from './state.js';
 import { isoWeekVan, magGebruikersBeheren, hoofdLetterCode, vandaagIso, plusDagen, kolomNaarRadId } from './helpers.js';
 import { maakClientBackup } from './backup-client.js';
@@ -412,24 +412,28 @@ export async function actImportSchrijven(renderGebView) {
   state.importBezig = true;
   renderGebView();
   try {
-    // 0. Backup vóór schrijven — download JSON zodat altijd teruggedraaid kan worden
-    try {
-      const backupResultaat = await maakClientBackup('voor-import');
-      if (backupResultaat === null) {
-        // Gebruiker heeft wachtwoord-prompt geannuleerd — geen backup gemaakt
-        const doorgaan = confirm(
-          'De backup is niet gemaakt omdat het wachtwoord werd geannuleerd.\n\n' +
-          'Zonder backup kun je de import niet terugdraaien als er iets misgaat.\n\n' +
-          'Wil je toch doorgaan zonder backup?'
-        );
-        if (!doorgaan) {
-          state.importBezig = false;
-          renderGebView();
-          return;
+    // 0. Backup vóór schrijven — download JSON zodat altijd teruggedraaid kan worden.
+    //    In de testomgeving is een backup geblokkeerd; dan slaan we deze stap
+    //    over (testdata hoeft niet veiliggesteld te worden).
+    if (!IS_TEST_DB) {
+      try {
+        const backupResultaat = await maakClientBackup('voor-import');
+        if (backupResultaat === null) {
+          // Gebruiker heeft wachtwoord-prompt geannuleerd — geen backup gemaakt
+          const doorgaan = confirm(
+            'De backup is niet gemaakt omdat het wachtwoord werd geannuleerd.\n\n' +
+            'Zonder backup kun je de import niet terugdraaien als er iets misgaat.\n\n' +
+            'Wil je toch doorgaan zonder backup?'
+          );
+          if (!doorgaan) {
+            state.importBezig = false;
+            renderGebView();
+            return;
+          }
         }
+      } catch (backupErr) {
+        console.warn('Backup mislukt (import gaat wel door):', backupErr);
       }
-    } catch (backupErr) {
-      console.warn('Backup mislukt (import gaat wel door):', backupErr);
     }
 
     // 1. Indeling wegschrijven

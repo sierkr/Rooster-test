@@ -1,3 +1,18 @@
+## v3.27.111 — Backups geblokkeerd in de testomgeving
+
+### Waarom
+Een backup van testdata zou per ongeluk in de live-agenda teruggezet kunnen worden. Door het maken van een backup in de testomgeving onmogelijk te maken, kan zo'n testbackup simpelweg niet bestaan — het gevaar is bij de bron weg.
+
+### Wijzigingen
+- **backup-client.js**: `maakClientBackup` stopt direct in de testomgeving (geen download, geen schrijf-actie).
+- **Gebruikers-tab**: klikken op "Nu backup maken" in test toont de melding *"In de testomgeving kan geen backup gemaakt worden."* De backup-kaart toont in test een duidelijke hint.
+- **Excel-import in test**: de automatische backup-vóór-import wordt overgeslagen (geen nag-prompt; testdata hoeft niet veiliggesteld te worden).
+- **Backup terugzetten blijft in test wél mogelijk**, zodat je een in de live-agenda gemaakte backup hier kunt herstellen om met actuele data te oefenen (de nuttige richting live → test).
+
+Versie 3.27.110 → 3.27.111 (config-basis, sw.js).
+
+---
+
 ## v3.27.110 — Beheerdershandleiding bijgewerkt
 
 ### Wijziging

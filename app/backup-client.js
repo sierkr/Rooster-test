@@ -10,7 +10,7 @@
 // LET OP: bij vergeten wachtwoord is de backup NIET te herstellen.
 
 import { collection, getDocs, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { db } from './firebase-init.js';
+import { db, IS_TEST_DB } from './firebase-init.js';
 import { state } from './state.js';
 
 const BACKUP_COLLECTIES = [
@@ -115,6 +115,12 @@ function vraagWachtwoord(titel, bevestig = false) {
  * De beheerder kiest zelf een wachtwoord.
  */
 export async function maakClientBackup(reden = 'handmatig') {
+  // In de testomgeving kan geen backup gemaakt worden: een backup van testdata
+  // zou per ongeluk in de live-agenda teruggezet kunnen worden. Door het maken
+  // bij de bron te blokkeren, kan zo'n testbackup simpelweg niet bestaan.
+  if (IS_TEST_DB) {
+    return { geblokkeerd: true, reden: 'test' };
+  }
   // Wachtwoord opvragen (bij automatische voor-import backup ook)
   const wachtwoord = vraagWachtwoord(
     `Kies een wachtwoord voor deze backup (reden: ${reden}).`,

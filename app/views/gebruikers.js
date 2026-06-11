@@ -1,6 +1,6 @@
 // Gebruikers-view: gebruikers beheren, parttime, waarnemers, Excel-import.
 import { collection, doc, getDocs, query, where, setDoc, updateDoc, writeBatch, deleteField, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { db, fnGebruikerAanmaken, fnGebruikerVerwijderen, fnGebruikerResetWachtwoord } from '../firebase-init.js';
+import { db, fnGebruikerAanmaken, fnGebruikerVerwijderen, fnGebruikerResetWachtwoord, IS_TEST_DB } from '../firebase-init.js';
 import { state, SLOTS, VASTE_RAD_IDS, VASTE_BEHEERDER_EMAIL } from '../state.js';
 import {
   vasteRads, vasteRadsOpDatum, actieveInvallers, radiologenMap, parttimeFactor, defaultPermissies,
@@ -308,10 +308,14 @@ export async function renderGebView() {
         <div class="card">
           ${_wHtml}
           <div style="font-size:12px;color:#5f5e5a;margin-bottom:10px;">${_lbTxt}${_lbRStr}</div>
-          <div style="font-size:12px;color:#5f5e5a;margin-bottom:8px;">
-            Klik op <b>Nu backup maken</b> om een versleutelde snapshot van de hele database te downloaden.
-            Vóór elke Excel-import wordt automatisch een backup gemaakt.
-          </div>
+          ${IS_TEST_DB
+            ? `<div style="font-size:12px;color:#9c5700;background:#fff6e0;border:1px solid #e6a817;border-radius:6px;padding:8px 10px;margin-bottom:10px;">
+                 In de <b>testomgeving</b> kan geen backup gemaakt worden. Maak een backup in de live-agenda; die kun je hier wél terugzetten om met actuele data te oefenen.
+               </div>`
+            : `<div style="font-size:12px;color:#5f5e5a;margin-bottom:8px;">
+                 Klik op <b>Nu backup maken</b> om een versleutelde snapshot van de hele database te downloaden.
+                 Vóór elke Excel-import wordt automatisch een backup gemaakt.
+               </div>`}
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary" onclick="window.actMaakBackup()">⬇ Nu backup maken</button>
             <button class="btn" onclick="document.getElementById('herstelFileInput').click()">↩ Backup terugzetten</button>
@@ -744,6 +748,10 @@ window.gebruikerVerwijderen = async function(uid, email) {
 window.actImportFile        = (input) => actImportFile(input, renderGebView);
 
 window.actMaakBackup = async function() {
+  if (IS_TEST_DB) {
+    alert('In de testomgeving kan geen backup gemaakt worden.\n\nMaak een backup in de live-agenda; die kun je desgewenst in de testomgeving terugzetten om met actuele data te oefenen.');
+    return;
+  }
   try {
     const knop = document.querySelector('[onclick="window.actMaakBackup()"]');
     if (knop) { knop.disabled = true; knop.textContent = 'Bezig\u2026'; }
