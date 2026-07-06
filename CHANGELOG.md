@@ -1,3 +1,37 @@
+## v3.27.112 — Excel-export: volledig jaar, senioriteitsvolgorde en herleidbare kolomkoppen
+
+### Waarom
+De Excel-export toonde bij een nieuw kalenderjaar alleen de al ingevulde dagen
+i.p.v. het hele jaar. Daarnaast gebruikte de export een vaste, hardgecodeerde
+kolomvolgorde (stoel-ID) i.p.v. de senioriteitsvolgorde die de rest van de app
+al gebruikt, waardoor een nieuwe radioloog op een seniore stoel niet naar
+rechts verschoof zoals in de app. Tot slot bleef bij een stoelwissel of een
+waarnemer die "→ Vast" ging, de kolomkop het hele jaar op één naam staan, ook
+voor de dagen van de vorige bezetter.
+
+### Fixes
+- **Export.js**: alle kalenderdagen van het gekozen jaar worden nu geëxporteerd,
+  ook dagen zonder Firestore-document (leeg = nog geen indeling).
+- **Export.js**: kolomvolgorde is nu gebaseerd op dezelfde senioriteits-logica
+  (`in_dienst`-datum van de huidige bezetter) als Overzicht/Afdeling, i.p.v. een
+  vaste stoel-ID-volgorde. Waarnemer-slots (W5..W1) blijven na de vaste stoelen
+  staan, in vaste volgorde.
+- **Export.js**: kolomkop is nu datum-bewust — bij een stoel/slot met meerdere
+  bezetters in het geëxporteerde jaar (wissel, of waarnemer → vaste stoel)
+  wordt een Excel-notitie op de kolomkop gezet met de volledige tijdlijn
+  (wie zat wanneer op deze stoel), zodat altijd herleidbaar blijft wie je op
+  welke dag hebt ingedeeld.
+- **Gebruikers.js**: het invullen van code/achternaam van een waarnemer via de
+  simpele Waarnemers-tabel wordt nu ook doorgeschreven naar de open
+  bezetting_historie-entry van die stoel. Voorheen kon dit stilzwijgend genegeerd
+  worden door de weergave zodra een stoel ooit gewisseld of gemigreerd was,
+  omdat de weergave altijd voorrang geeft aan de historie-entry boven het
+  top-level veld.
+
+### Upgrade
+1. Vervang `app/export.js`, `app/views/gebruikers.js` en `config.js`.
+2. Hard refresh (versie is nu 3.27.112).
+
 ## v3.27.111 — Backups geblokkeerd in de testomgeving
 
 ### Waarom

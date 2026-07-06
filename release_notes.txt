@@ -1,13 +1,28 @@
-Rooster v3.27.111 — Release notes
+Rooster v3.27.112 — Release notes
 ==================================
 
-GEEN BACKUPS IN DE TESTOMGEVING
------------------------------
-In de testomgeving kan geen backup meer gemaakt worden. Klik je daar op "Nu
-backup maken", dan verschijnt de melding dat dit in de testomgeving niet kan.
-Zo kan er nooit een testbackup ontstaan die je per ongeluk in de live-agenda
-terugzet.
+EXCEL-EXPORT: VOLLEDIG JAAR EN HERLEIDBARE KOLOMKOPPEN
+-------------------------------------------------------
+- Een export van een (nieuw) kalenderjaar toont nu altijd alle dagen van het
+  jaar, ook de nog lege dagen. Voorheen liet de export alleen de al ingevulde
+  dagen zien.
+- De kolomvolgorde in de export volgt nu dezelfde senioriteitsvolgorde
+  (in_dienst-datum van de huidige bezetter) als Overzicht/Afdeling in de app
+  zelf, in plaats van een vaste stoel-volgorde. Vervangt een nieuwe radioloog
+  de meest seniore radioloog op een stoel, dan verschuift die kolom nu ook in
+  de export naar rechts.
+- Had een stoel of waarnemer-slot in het geëxporteerde jaar meerdere
+  bezetters (bijvoorbeeld een wissel, of een waarnemer die "→ Vast" ging),
+  dan staat er nu een Excel-notitie op de kolomkop met de volledige tijdlijn
+  (wie zat wanneer op deze stoel).
 
-- De automatische backup vóór een Excel-import wordt in test overgeslagen.
-- Een backup terugzetten kan in test wél: maak een backup in de live-agenda en
-  herstel die in test om met actuele data te oefenen.
+WAARNEMERS-TABEL: CODE/ACHTERNAAM WORDT NU OVERAL BIJGEWERKT
+-------------------------------------------------------------
+- Het wijzigen van de code of achternaam van een waarnemer via de simpele
+  Waarnemers-tabel (Gebruikers-tab) wordt nu ook doorgeschreven naar de
+  lopende bezetting-historie van die stoel. Voorheen kon dit onopgemerkt
+  genegeerd worden in het rooster zodra die stoel ooit gewisseld of
+  gemigreerd was.
+
+Vorige release (v3.27.111): backups geblokkeerd in de testomgeving — zie
+CHANGELOG.md voor het volledige overzicht.
