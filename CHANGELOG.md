@@ -1,3 +1,31 @@
+## v3.27.115 — "Gebruikers"-tab herzien naar "Beheer" met drie sub-tabs
+
+### Waarom
+De Gebruikers-tab bundelde drie verschillende zaken (stoelbezetting,
+inlogaccounts en losse instellingen) in één lange lijst, wat verwarrend werkte.
+Vooral het onderscheid tussen roosterpersonen (radiologen/waarnemers) en
+inlogaccounts (ook technici en secretariaat) was onduidelijk.
+
+### Wat is er veranderd (alleen presentatie/indeling; datamodel ongewijzigd)
+- De tab "Gebruikers" heet nu **Beheer**.
+- Beheer heeft drie sub-tabs:
+  1. **Stoel bezetting** — vaste radiologen en waarnemers, ongewijzigd.
+  2. **App gebruikers** — de bestaande accounts, met onder-tabs Radiologen,
+     Technici en Secretariaat. Alleen radiologen kunnen aan een stoel gekoppeld
+     worden; een radioloog die ook beheerder is, staat als "Radioloog,
+     beheerder". "+ Nieuw" per onder-tab vult de juiste rol alvast in.
+  3. **Control** — met onder-tabs Regels (de voormalige aparte Regels-tab, nu
+     hierheen verplaatst) en Overige instellingen (Excel-import, Excel-export,
+     database-backup, app-instellingen en gegevensbeheer).
+- De aparte "Regels"-tab in de hoofdnavigatie is vervallen en zit nu in Beheer.
+  De Beheer-tab is zichtbaar zodra de gebruiker gebruikers- óf regels-rechten
+  heeft; onder-tabs verschijnen alleen waar de gebruiker rechten voor heeft.
+
+### Upgrade
+1. Vervang `app/views/gebruikers.js`, `app/views/regels.js`, `app/main.js`,
+   `index.html`, `config.js` en `sw.js`.
+2. Hard refresh (versie is nu 3.27.115).
+
 ## v3.27.114 — Oude versie bleef actief op iPhone (PWA-update)
 
 ### Waarom

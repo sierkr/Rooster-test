@@ -4,9 +4,10 @@ import { db, fnGebruikerAanmaken, fnGebruikerVerwijderen, fnGebruikerResetWachtw
 import { state, SLOTS, VASTE_RAD_IDS, VASTE_BEHEERDER_EMAIL } from '../state.js';
 import {
   vasteRads, vasteRadsOpDatum, actieveInvallers, radiologenMap, parttimeFactor, defaultPermissies,
-  magGebruikersBeheren, genereerWachtwoord, bezettingOpDatum, vandaagIso, plusDagen, formatDatum,
+  magGebruikersBeheren, magRegelsBeheren, genereerWachtwoord, bezettingOpDatum, vandaagIso, plusDagen, formatDatum,
   alleVasteStoelIds, isVasteStoel, nieuwPersoonId,
 } from '../helpers.js';
+import { renderRegView } from './regels.js';
 import { STANDAARD_WACHTWOORD } from '../helpers.js';
 import { openSheet, closeSheet } from '../sheets.js';
 import { IMPORT_SHEET, actImportFile, actImportSchrijven, actImportAnnuleren, actZetImportJaar } from '../import.js';
@@ -21,36 +22,41 @@ export async function laadGebruikers() {
 
 export async function renderGebView() {
   const container = document.getElementById('view-geb');
-  if (!magGebruikersBeheren()) { container.innerHTML = '<div class="empty-state">Geen toegang</div>'; return; }
+  const canGeb = magGebruikersBeheren();
+  const canReg = magRegelsBeheren() || canGeb;
+  if (!canGeb && !canReg) { container.innerHTML = '<div class="empty-state">Geen toegang</div>'; return; }
 
-  await laadGebruikers();
+  if (canGeb) await laadGebruikers();
   const rads = radiologenMap();
 
-  let html = `
-    <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <p style="font-size: 17px; font-weight: 500; margin: 0;">Gebruikers</p>
-          <p class="muted" style="margin: 2px 0 0;">${state.gebruikers.length} gebruiker${state.gebruikers.length===1?'':'s'}</p>
-        </div>
-        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-          <button class="btn btn-primary" onclick="window.nieuweGebruiker()">+ Nieuw</button>
-          <span class="muted" style="font-size: 11px;">v${window.APP_VERSIE || '?'}</span>
-        </div>
-      </div>
-    </div>
-  `;
+  let htmlBezetting = '';
+  let htmlOverig = '';
 
-  state.gebruikers.forEach(g => {
+  // ---- App gebruikers: accounts gesplitst per soort medewerker -------------
+  // Categorie bepaalt de onder-tab; alleen radiologen kunnen aan een stoel
+  // gekoppeld worden. Een radioloog met beheerrechten krijgt de dubbele titel
+  // "Radioloog, beheerder". Onderliggende rol/permissies blijven ongewijzigd.
+  const accountRij = (g) => {
     const rad = g.radioloog_id ? rads[g.radioloog_id] : null;
-    html += `
+    const eff = g.permissies || defaultPermissies(g.rol);
+    const isAdmin = g.rol === 'beheerder' || eff.mag_gebruikers === true;
+    let cat;
+    if (g.rol === 'technician' || g.rol === 'lezer') cat = 'tech';
+    else if (g.rol === 'secretariaat') cat = 'sec';
+    else cat = 'rad';
+    let titel;
+    if (cat === 'tech') titel = 'Technicus';
+    else if (cat === 'sec') titel = 'Secretariaat';
+    else if (g.rol === 'beheerder') titel = g.radioloog_id ? 'Radioloog, beheerder' : 'Beheerder';
+    else titel = isAdmin ? 'Radioloog, beheerder' : 'Radioloog';
+    const html = `
       <div class="gebruiker-item">
         <div class="gebruiker-hoofd">
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${g.naam || g.email}</div>
             ${rad ? `<div class="muted">${rad.code} · ${rad.achternaam}</div>` : ''}
           </div>
-          <span class="rol-badge rol-${g.rol}">${g.rol}</span>
+          <span class="rol-badge rol-${g.rol}">${titel}</span>
         </div>
         <div style="margin-top: 10px; display: flex; gap: 6px;">
           <button class="btn" style="flex: 1; font-size: 12px; padding: 6px;" onclick="window.gebruikerBewerken('${g.id}')">Rol wijzigen</button>
@@ -59,10 +65,21 @@ export async function renderGebView() {
         </div>
       </div>
     `;
-  });
+    return { cat, html };
+  };
+
+  let radRows = '', techRows = '', secRows = '';
+  if (canGeb) {
+    state.gebruikers.forEach(g => {
+      const r = accountRij(g);
+      if (r.cat === 'tech') techRows += r.html;
+      else if (r.cat === 'sec') secRows += r.html;
+      else radRows += r.html;
+    });
+  }
 
   // Vaste radiologen — parttime-percentage en vakantierecht
-  html += `
+  htmlBezetting += `
     <div style="margin-top: 1.5rem;">
       <div class="summary-label" style="margin-bottom: 6px;">Vaste radiologen — parttime &amp; vakantierecht</div>
       <div class="card">
@@ -137,7 +154,7 @@ export async function renderGebView() {
   }).filter(Boolean);
 
   if (vertrokken.length > 0) {
-    html += `
+    htmlBezetting += `
       <div style="margin-top: 1.5rem;">
         <div class="summary-label" style="margin-bottom: 6px;">Vertrokken stoelen</div>
         <div class="card">
@@ -155,7 +172,7 @@ export async function renderGebView() {
   }
 
   // Waarnemers-sectie
-  html += `
+  htmlBezetting += `
     <div style="margin-top: 1.5rem;">
       <div class="summary-label" style="margin-bottom: 6px;">Waarnemers (W-slots)</div>
       <div class="card">
@@ -183,7 +200,7 @@ export async function renderGebView() {
   // Excel-import sectie
   const p = state.importPreview;
   const bezig = state.importBezig;
-  html += `
+  htmlOverig += `
     <div style="margin-top: 1.5rem;">
       <div class="summary-label" style="margin-bottom: 6px;">Excel-import</div>
       <div class="card">
@@ -242,7 +259,7 @@ export async function renderGebView() {
   `;
 
   // Excel-export sectie
-  html += `
+  htmlOverig += `
     <div style="margin-top: 1rem;">
       <div class="summary-label" style="margin-bottom: 6px;">Excel-export</div>
       <div class="card">
@@ -302,7 +319,7 @@ export async function renderGebView() {
           }).join('')
         + '</div></div>';
 
-    html += `
+    htmlOverig += `
       <div style="margin-top: 1rem;">
         <div class="summary-label" style="margin-bottom: 6px;">Database-backup</div>
         <div class="card">
@@ -332,7 +349,7 @@ export async function renderGebView() {
 
   // Gegevensbeheer sectie (alleen beheerder)
   if (magGebruikersBeheren()) {
-    html += `
+    htmlOverig += `
       <div style="margin-top: 1rem;">
         <div class="summary-label" style="margin-bottom: 6px;">App-instellingen</div>
         <div class="card">
@@ -353,7 +370,7 @@ export async function renderGebView() {
     const grensdatum = tweeJaarGeleden.toISOString().slice(0, 10);
     const vandaag = vandaagIso();
 
-    html += `
+    htmlOverig += `
       <div style="margin-top: 1rem;">
         <div class="summary-label" style="margin-bottom: 6px;">Gegevensbeheer</div>
         <div class="card">
@@ -379,8 +396,103 @@ export async function renderGebView() {
     `;
   }
 
-  container.innerHTML = html;
+  // ---- Assemblage: Beheer met drie sub-tabs --------------------------------
+  const v = window.APP_VERSIE || '?';
+  const showBez = canGeb, showGeb = canGeb, showCtl = canReg;
+  const eersteTab = showBez ? 'bezetting' : (showGeb ? 'gebruikers' : 'control');
+  const disp = (id) => id === eersteTab ? 'block' : 'none';
+  const tab1 = (id, label) => `<button class="beh-tab1 ${id===eersteTab?'active':''}" data-t="${id}" onclick="window.gebTab1('${id}')">${label}</button>`;
+  const tab2 = (scope, id, label, active) => `<button class="beh-tab2 ${active?'active':''}" data-scope="${scope}" data-t="${id}" onclick="window.gebTab2('${scope}','${id}')">${label}</button>`;
+
+  let tabs1 = '';
+  if (showBez) tabs1 += tab1('bezetting', 'Stoel bezetting');
+  if (showGeb) tabs1 += tab1('gebruikers', 'App gebruikers');
+  if (showCtl) tabs1 += tab1('control', 'Control');
+
+  // App gebruikers-paneel met onder-tabs Radiologen / Technici / Secretariaat
+  const gebPanel = `
+    <div class="beh-tabs2">
+      ${tab2('geb','rad','Radiologen',true)}
+      ${tab2('geb','tech','Technici',false)}
+      ${tab2('geb','sec','Secretariaat',false)}
+    </div>
+    <div id="gebsub-rad" class="gebsub">
+      <div class="card">
+        <p class="muted" style="margin:0 0 10px;">Alleen radiologen kunnen aan een stoel gekoppeld worden. Een radioloog die ook beheerder is, staat als <b>Radioloog, beheerder</b>.</p>
+        <button class="btn btn-primary" style="width:100%;" onclick="window.nieuweGebruiker('radioloog')">+ Nieuwe radioloog</button>
+      </div>
+      ${radRows || '<div class="empty-state">Nog geen radiologen</div>'}
+    </div>
+    <div id="gebsub-tech" class="gebsub" style="display:none;">
+      <div class="card">
+        <p class="muted" style="margin:0 0 10px;">Technici hebben een account met beperktere toegang en krijgen geen stoel.</p>
+        <button class="btn btn-primary" style="width:100%;" onclick="window.nieuweGebruiker('technician')">+ Nieuwe technicus</button>
+      </div>
+      ${techRows || '<div class="empty-state">Nog geen technici</div>'}
+    </div>
+    <div id="gebsub-sec" class="gebsub" style="display:none;">
+      <div class="card">
+        <p class="muted" style="margin:0 0 10px;">Secretariaat heeft een account met beperktere toegang en krijgt geen stoel.</p>
+        <button class="btn btn-primary" style="width:100%;" onclick="window.nieuweGebruiker('secretariaat')">+ Nieuw secretariaat</button>
+      </div>
+      ${secRows || '<div class="empty-state">Nog geen secretariaat</div>'}
+    </div>
+  `;
+
+  // Control-paneel met onder-tabs Regels + Overige instellingen
+  const regelsDefault = canReg;
+  const controlPanel = `
+    <div class="beh-tabs2">
+      ${canReg ? tab2('ctl','regels','Regels',true) : ''}
+      ${canGeb ? tab2('ctl','overig','Overige instellingen',!regelsDefault) : ''}
+    </div>
+    ${canReg ? `<div id="ctlsub-regels" class="ctlsub"><div id="view-reg" class="view"></div></div>` : ''}
+    ${canGeb ? `<div id="ctlsub-overig" class="ctlsub" style="${regelsDefault?'display:none;':''}">${htmlOverig}</div>` : ''}
+  `;
+
+  container.innerHTML = `
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <p style="font-size:17px; font-weight:500; margin:0;">Beheer</p>
+          <p class="muted" style="margin:2px 0 0;">Stoel bezetting, app gebruikers en instellingen</p>
+        </div>
+        <span class="muted" style="font-size:11px;">v${v}</span>
+      </div>
+    </div>
+    <div class="beh-tabs1">${tabs1}</div>
+    ${showBez ? `<div id="behpanel-bezetting" class="behpanel" style="display:${disp('bezetting')};">${htmlBezetting}</div>` : ''}
+    ${showGeb ? `<div id="behpanel-gebruikers" class="behpanel" style="display:${disp('gebruikers')};">${gebPanel}</div>` : ''}
+    ${showCtl ? `<div id="behpanel-control" class="behpanel" style="display:${disp('control')};">${controlPanel}</div>` : ''}
+  `;
+
+  // Regels-view in het Control-paneel renderen (vult #view-reg dat hierboven is
+  // aangemaakt). Alleen als de gebruiker regels mag beheren.
+  if (canReg) renderRegView();
 }
+
+// Sub-tab-navigatie binnen Beheer (niveau 1: Stoel bezetting / App gebruikers /
+// Control). Panelen blijven in de DOM en worden alleen getoond/verborgen, zodat
+// ingevulde formuliervelden en knop-statussen behouden blijven.
+window.gebTab1 = function(id) {
+  ['bezetting','gebruikers','control'].forEach(k => {
+    const el = document.getElementById('behpanel-' + k);
+    if (el) el.style.display = (k === id) ? 'block' : 'none';
+  });
+  document.querySelectorAll('.beh-tab1').forEach(b => b.classList.toggle('active', b.dataset.t === id));
+};
+
+// Sub-tab-navigatie niveau 2. scope 'geb' = App gebruikers (rad/tech/sec),
+// scope 'ctl' = Control (regels/overig).
+window.gebTab2 = function(scope, id) {
+  const prefix = scope === 'geb' ? 'gebsub-' : 'ctlsub-';
+  const keys = scope === 'geb' ? ['rad','tech','sec'] : ['regels','overig'];
+  keys.forEach(k => {
+    const el = document.getElementById(prefix + k);
+    if (el) el.style.display = (k === id) ? 'block' : 'none';
+  });
+  document.querySelectorAll('.beh-tab2[data-scope="' + scope + '"]').forEach(b => b.classList.toggle('active', b.dataset.t === id));
+};
 
 // ==== Handlers ===============================================================
 
@@ -538,20 +650,21 @@ window.opslaanInvallers = async function() {
   }
 };
 
-window.nieuweGebruiker = function() {
+window.nieuweGebruiker = function(preRol) {
   document.getElementById('sheetTitle').textContent = 'Nieuwe gebruiker';
   document.getElementById('sheetSub').textContent = 'Vul de gegevens in';
   const rads = vasteRads();
   const waarnemers = actieveInvallers();
+  const sel = (r) => preRol === r ? ' selected' : '';
   document.getElementById('sheetBody').innerHTML = `
     <div class="form-field"><label class="form-label">Naam</label><input type="text" class="input" id="nuNaam" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="voornaam.achternaam"></div>
     <div class="form-field"><label class="form-label">Tijdelijk wachtwoord</label><input type="text" class="input" id="nuPw" value="${STANDAARD_WACHTWOORD}"></div>
     <div class="form-field"><label class="form-label">Rol</label>
       <select class="select" id="nuRol">
-        <option value="radioloog">Radioloog</option>
-        <option value="beheerder">Beheerder</option>
-        <option value="secretariaat">Secretariaat</option>
-        <option value="technician">Technician</option>
+        <option value="radioloog"${sel('radioloog')}>Radioloog</option>
+        <option value="beheerder"${sel('beheerder')}>Beheerder</option>
+        <option value="secretariaat"${sel('secretariaat')}>Secretariaat</option>
+        <option value="technician"${sel('technician')}>Technician</option>
       </select>
     </div>
     <div class="form-field"><label class="form-label">Gekoppeld aan (optioneel)</label>
