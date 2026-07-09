@@ -1,33 +1,13 @@
-Rooster v3.27.116 — Release notes
+Rooster v3.27.111 — Release notes
 ==================================
 
-BEHEER: NIEUWE STOEL, DUIDELIJKER WISSEL/→VAST, WAARNEMER-DATABUG OPGELOST
-----------------------------------------------------------------------------
-Naar aanleiding van het testen van v3.27.115 zijn vier problemen in de
-Beheer-tab (Stoel bezetting) opgelost:
+GEEN BACKUPS IN DE TESTOMGEVING
+-----------------------------
+In de testomgeving kan geen backup meer gemaakt worden. Klik je daar op "Nu
+backup maken", dan verschijnt de melding dat dit in de testomgeving niet kan.
+Zo kan er nooit een testbackup ontstaan die je per ongeluk in de live-agenda
+terugzet.
 
-- Nieuwe knop "➕ Nieuwe stoel aanmaken" bij Vaste radiologen: een nieuwe
-  vaste stoel aanmaken is nu een eigen, vindbare actie — niet meer verstopt
-  in de →Vast-dropdown van een waarnemer.
-- Duidelijkere uitleg bij Wissel en →Vast: Wissel zet een nieuwe persoon op
-  een stoel zonder migratie; →Vast maakt een bestaande waarnemer vast mét
-  behoud van diens indeling, wensen en diensten.
-- Bug opgelost waarbij een leeg code-veld bij een waarnemer werd opgeslagen
-  als de letterlijke slot-naam (bv. "W4") in plaats van leeg. Een actieve
-  waarnemer zonder code kan nu niet meer opgeslagen worden.
-- Bug opgelost waarbij een waarnemer die via →Vast met een datum in de
-  toekomst werd vastgemaakt, meteen uit de Waarnemers-lijst verdween in
-  plaats van pas op de daadwerkelijke ingangsdatum.
-
-Daarnaast is de senioriteits-sorteerlogica (bepaalt kolomvolgorde in
-Overzicht, Afdeling én Excel-export) samengevoegd tot één functie in
-helpers.js, zodat de Excel-export en de live-app nooit meer stilzwijgend uit
-elkaar kunnen lopen. Gedrag/uitkomst is ongewijzigd.
-
-Bestaande datavervuiling (een waarnemer-code die per ongeluk gelijk is aan
-de slot-naam) herstelt zichzelf in de weergave zodra die W-stoel op
-"inactief" staat. Staat zo'n rij per ongeluk op "actief": eenmalig het
-code-veld corrigeren en opslaan.
-
-Vorige release (v3.27.115): "Gebruikers"-tab herzien naar "Beheer" met drie
-sub-tabs — zie CHANGELOG.md voor het volledige overzicht.
+- De automatische backup vóór een Excel-import wordt in test overgeslagen.
+- Een backup terugzetten kan in test wél: maak een backup in de live-agenda en
+  herstel die in test om met actuele data te oefenen.
