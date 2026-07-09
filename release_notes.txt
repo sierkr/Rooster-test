@@ -1,25 +1,23 @@
-Rooster v3.27.115 — Release notes
+Rooster v3.27.114 — Release notes
 ==================================
 
-"GEBRUIKERS"-TAB HERZIEN NAAR "BEHEER"
----------------------------------------
-De tab "Gebruikers" heet nu "Beheer" en is opgesplitst in drie duidelijke
-sub-tabs. De functionaliteit blijft gelijk; alleen de indeling is overzichtelijker.
+OUDE VERSIE BLEEF ACTIEF OP IPHONE
+-----------------------------------
+- Op de iPhone bleef de oude versie soms actief na een nieuwe release. De app
+  vroeg zelf nooit actief om een update, en Safari op iOS controleert daar uit
+  zichzelf zelden op — een PWA vanaf het beginscherm wordt vaak hervat vanuit
+  een snapshot in plaats van echt herladen. Daarnaast kon een nieuwe versie bij
+  het opslaan per ongeluk oude bestanden uit de browsercache oppikken.
+- Opgelost: de app haalt bij een update nu altijd verse bestanden rechtstreeks
+  van de server, en controleert zelf actief op een nieuwe versie — bij het
+  openen én telkens wanneer je de app weer op de voorgrond haalt (na
+  app-wissel, ontgrendelen of terugkeren naar de app). Zodra er een nieuwe
+  versie klaarstaat, ververst de app zichzelf automatisch.
 
-- Stoel bezetting: de vaste radiologen en waarnemers, ongewijzigd.
-- App gebruikers: de bestaande accounts, met onder-tabs Radiologen, Technici en
-  Secretariaat. Alleen radiologen kunnen aan een stoel gekoppeld worden. Een
-  radioloog die ook beheerder is, staat als "Radioloog, beheerder". De knop
-  "+ Nieuw" staat per onder-tab en vult de juiste rol alvast in.
-- Control: met onder-tabs Regels (de voormalige aparte Regels-tab, nu hierheen
-  verplaatst) en Overige instellingen (Excel-import, Excel-export,
-  database-backup, app-instellingen en gegevensbeheer).
+Let op bij deze ene overstap: omdat de fix juist de update-afhandeling zelf
+betreft, kan het op een iPhone die nog op een oudere versie staat eenmalig
+nodig zijn de app te sluiten en opnieuw te openen (of in Safari te herladen).
+Daarna gaat het vanzelf.
 
-De losse "Regels"-tab in de hoofdnavigatie is verdwenen en zit nu in Beheer.
-De Beheer-tab verschijnt zodra je gebruikers- of regels-rechten hebt; onder-tabs
-tonen alleen waar je rechten voor hebt.
-
-Het onderliggende datamodel is niet gewijzigd.
-
-Vorige release (v3.27.114): oude versie bleef soms actief op iPhone (PWA-update)
-- zie CHANGELOG.md voor het volledige overzicht.
+Vorige release (v3.27.113): backupfout "Maximum call stack size exceeded" bij
+een grote database opgelost — zie CHANGELOG.md voor het volledige overzicht.
