@@ -1,3 +1,69 @@
+## v3.27.116 — Beheer: nieuwe-stoel als losse actie, waarnemer-databug en dubbele senioriteitslogica opgelost
+
+### Waarom
+Na het testen van v3.27.115 kwamen vier verwante problemen naar boven in de
+Beheer-tab (Stoel bezetting):
+1. Een nieuwe vaste stoel aanmaken kon alleen via een verstopte optie in de
+   →Vast-dropdown van een waarnemer — niet vindbaar als je nog geen waarnemer
+   had aangemaakt.
+2. Er waren twee losse, niet nader toegelichte manieren om iemand op een
+   vaste stoel te zetten (Wissel en →Vast), met verschillend gedrag.
+3. Een leeg code-veld bij een waarnemer werd bij "Waarnemers opslaan"
+   stilzwijgend vervangen door de letterlijke slot-ID (bv. "W4"), die daarna
+   als échte data bleef staan.
+4. Een waarnemer die via →Vast met een ingangsdatum in de toekomst werd
+   vastgemaakt, verdween meteen uit de Waarnemers-lijst — maanden vóór de
+   wissel daadwerkelijk inging.
+
+Daarnaast bleek de senioriteits-sorteerformule (bepaalt kolomvolgorde in
+Overzicht/Afdeling én Excel-export) dubbel geïmplementeerd: identiek in
+gedrag, maar in twee losse stukken code die zonder waarschuwing uit elkaar
+hadden kunnen groeien.
+
+### Fixes
+- **Gebruikers.js**: nieuwe knop "➕ Nieuwe stoel aanmaken" bij Vaste
+  radiologen — een eigen, vindbare sheet om een radioloog op een gloednieuwe
+  vaste stoel te zetten, los van de waarnemer-flow. De "➕ Nieuwe stoel"-optie
+  in de →Vast-dropdown van een waarnemer blijft bestaan voor het andere
+  gebruik: een bestaande waarnemer vast in dienst nemen mét behoud van diens
+  indeling.
+- **Gebruikers.js**: toelichtende tekst bij Vaste radiologen en Waarnemers
+  aangescherpt om het verschil tussen Wissel (nieuwe persoon, geen migratie)
+  en →Vast (bestaande waarnemer, migreert mét indeling/wensen/diensten)
+  expliciet te maken.
+- **Gebruikers.js**: `opslaanInvallers` schrijft een leeg code-veld nu ook
+  echt leeg weg (nooit meer de slot-ID als code). Een waarnemer die op
+  "actief" staat zonder code kan niet meer opgeslagen worden — duidelijke
+  foutmelding i.p.v. stille datavervuiling.
+- **Gebruikers.js**: de Waarnemers-lijst toont de huidige bezetter nu altijd
+  via `bezettingOpDatum(slotId, vandaag)` in plaats van de rauwe top-level
+  velden. Die velden worden bij een →Vast-migratie al direct leeggemaakt,
+  ook bij een toekomstige ingangsdatum — de historie houdt daarentegen wél
+  rekening met de datum, dus de waarnemer blijft nu zichtbaar tot de wissel
+  écht ingaat.
+- **Helpers.js**: nieuwe canonieke functies `senioriteitSortKey`,
+  `vasteIdxVoorStoel` en `vergelijkOpSenioriteit` — de enige plek waar de
+  senioriteits-sorteerformule nog staat. `vasteRadsOpDatum` gebruikt ze nu
+  intern.
+- **Export.js**: de eigen, dubbel geïmplementeerde sorteerformule is vervangen
+  door aanroepen van dezelfde canonieke functies uit `helpers.js`. Gedrag is
+  ongewijzigd (zelfde formule, zelfde uitkomst), maar kolomvolgorde in
+  Overzicht/Afdeling en Excel-export kan nu niet meer stilzwijgend uit elkaar
+  lopen na een toekomstige wijziging.
+
+### Let op — bestaande datavervuiling
+Als een waarnemer-slot al vóór deze versie leeg opgeslagen is met code = de
+slot-ID (bv. "W4" als code, waarnemer op "inactief"), verdwijnt dat in de
+weergave vanzelf zodra de W-stoel op "inactief" staat (zie fix hierboven).
+Staat zo'n vervuilde rij per ongeluk wél op "actief" met een echte
+achternaam: eenmalig het code-veld corrigeren en op "Waarnemers opslaan"
+klikken — de bug komt na deze versie niet meer terug.
+
+### Upgrade
+1. Vervang `app/views/gebruikers.js`, `app/helpers.js`, `app/export.js`,
+   `config.js` en `sw.js`.
+2. Hard refresh (versie is nu 3.27.116).
+
 ## v3.27.115 — "Gebruikers"-tab herzien naar "Beheer" met drie sub-tabs
 
 ### Waarom

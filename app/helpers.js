@@ -224,10 +224,39 @@ export function loopbaanVoorPersoon(pid, fallbackKey) {
   return periodes;
 }
 
+// ==== Senioriteitsvolgorde (canonieke sorteerlogica) ========================
+// Eén plek die bepaalt in welke volgorde vaste stoelen op senioriteit staan.
+// Overzicht, Afdeling én Excel-export (export.js) gebruiken precies deze drie
+// functies — niet elk hun eigen kopie van de formule — zodat kolomvolgorde
+// nooit stilzwijgend uit elkaar kan lopen tussen de live-app en de export.
+//
+// senioriteitSortKey: de sorteersleutel voor één stoel op basis van de
+// in_dienst-datum van de bezetter. Zonder in_dienst-datum valt een van de
+// oorspronkelijke 8 stoelen terug op zijn vaste historische positie; een
+// extra stoel zonder datum sorteert achteraan.
+export function senioriteitSortKey(stoelId, inDienst) {
+  const idx = VASTE_RAD_IDS.indexOf(stoelId);
+  return inDienst || (idx < 0 ? '9999-01-01' : `${2000 + idx}-01-01`);
+}
+// vasteIdxVoorStoel: tie-break bij een gelijke sorteersleutel — de
+// oorspronkelijke 8 (VASTE_RAD_IDS) houden hun onderlinge volgorde, extra
+// stoelen komen achteraan.
+export function vasteIdxVoorStoel(stoelId) {
+  const idx = VASTE_RAD_IDS.indexOf(stoelId);
+  return idx < 0 ? 100 : idx;
+}
+// vergelijkOpSenioriteit: comparator voor Array.sort. Verwacht objecten met
+// minstens { sortKey, idx } (zie hierboven).
+export function vergelijkOpSenioriteit(a, b) {
+  if (a.sortKey !== b.sortKey) return a.sortKey < b.sortKey ? -1 : 1;
+  return a.idx - b.idx;
+}
+
 // Vaste radiologen op een gegeven datum. Een stoel verschijnt alleen als er op
 // die datum een actieve bezetter is (leeg = geen kolom). Het aantal kolommen
 // volgt dus per datum uit de bezetting (8 nu, meer/minder na toevoegen/opheffen).
-// Gesorteerd op anciënniteit (in_dienst, oudste = links). Default datum = vandaag.
+// Gesorteerd op anciënniteit (in_dienst, oudste = links) via de canonieke
+// senioriteits-helpers hierboven. Default datum = vandaag.
 export function vasteRadsOpDatum(datum) {
   const d = datum || vandaagIso();
   const lijst = alleVasteStoelIds().map((id) => {
@@ -236,20 +265,16 @@ export function vasteRadsOpDatum(datum) {
     const b = bezettingOpDatum(id, d);
     if (!b) return null; // geen actieve bezetter op deze datum → geen kolom
     const obj = { ...stoel, ...b, id };
-    const idx = VASTE_RAD_IDS.indexOf(id);
-    obj._vasteIdx = idx < 0 ? 100 : idx; // extra stoelen achteraan bij gelijke sleutel
-    // Sorteersleutel: echte in-dienst datum, anders placeholder. De
-    // oorspronkelijke 8 houden hun positie; een extra stoel zonder datum
-    // sorteert achteraan.
-    obj._sortKey = obj.in_dienst || (idx < 0 ? '9999-01-01' : `${2000 + idx}-01-01`);
+    obj.idx = vasteIdxVoorStoel(id); // extra stoelen achteraan bij gelijke sleutel
+    obj.sortKey = senioriteitSortKey(id, obj.in_dienst);
+    // Compat-aliassen: sommige aanroepers lazen voorheen _vasteIdx/_sortKey rechtstreeks.
+    obj._vasteIdx = obj.idx;
+    obj._sortKey = obj.sortKey;
     return obj;
   }).filter(Boolean);
 
   // Kolomvolgorde op anciënniteit: oudste in-dienst = links.
-  lijst.sort((a, b) => {
-    if (a._sortKey !== b._sortKey) return a._sortKey < b._sortKey ? -1 : 1;
-    return a._vasteIdx - b._vasteIdx;
-  });
+  lijst.sort(vergelijkOpSenioriteit);
   return lijst;
 }
 export function vasteRads() {

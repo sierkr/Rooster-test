@@ -21,11 +21,12 @@
 
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from './firebase-init.js';
-import { state, HOOFD_FUNCTIES, VASTE_RAD_IDS, SLOTS } from './state.js';
+import { state, HOOFD_FUNCTIES, SLOTS } from './state.js';
 import { IMPORT_SHEET, IMPORT_KOL_DIENST, IMPORT_KOL_BESPR, IMPORT_KOL_INTERV, IMPORT_KOL_OPM, IMPORT_KOLOM_NAAR_RADID } from './import.js';
 import {
   isHoofd, functieFlags, hoofdLetterCode, plusDagen, vandaagIso, huidigKalenderJaar,
   bezettingOpDatum, bezettingenInRange, alleVasteStoelIds,
+  senioriteitSortKey, vasteIdxVoorStoel, vergelijkOpSenioriteit,
 } from './helpers.js';
 
 // ---- Kleuren per hoofdletter-functiecode ------------------------------------
@@ -410,8 +411,11 @@ export async function actExportJaar(jaar, naamParam) {
           const laatste = bezetters[bezetters.length - 1];
           const bez     = huidig || laatste;
           const isSlot  = SLOTS.includes(id);
-          const idx     = VASTE_RAD_IDS.indexOf(id);
-          const sortKey = bez?.in_dienst || (idx < 0 ? '9999-01-01' : `${2000 + idx}-01-01`);
+          // Zelfde senioriteits-formule als Overzicht/Afdeling (helpers.js) —
+          // niet hier opnieuw uitgeschreven, om te voorkomen dat de
+          // kolomvolgorde in Excel ooit stilzwijgend afwijkt van de app.
+          const sortKey = senioriteitSortKey(id, bez?.in_dienst);
+          const idx     = vasteIdxVoorStoel(id);
           let notitie = null;
           if (bezetters.length > 1) {
             notitie = 'Bezetters in ' + jaar + ':\n' + bezetters.map(b => {
@@ -420,7 +424,7 @@ export async function actExportJaar(jaar, naamParam) {
               return `${b.code || id} · ${b.achternaam || ''} (${van} – ${tot})`;
             }).join('\n');
           }
-          return { id, isSlot, idx: idx < 0 ? 100 : idx, sortKey, code: bez?.code || id, notitie };
+          return { id, isSlot, idx, sortKey, code: bez?.code || id, notitie };
         })
         .filter(Boolean);
     } else {
@@ -428,17 +432,16 @@ export async function actExportJaar(jaar, naamParam) {
       // val terug op de vaste code→stoel-mapping (identiek aan de import).
       kolomEntries = Object.entries(IMPORT_KOLOM_NAAR_RADID).map(([code, id]) => {
         const isSlot = SLOTS.includes(id);
-        const idx = VASTE_RAD_IDS.indexOf(id);
-        return { id, isSlot, idx: idx < 0 ? 100 : idx, sortKey: idx < 0 ? '9999-01-01' : `${2000 + idx}-01-01`, code, notitie: null };
+        return { id, isSlot, idx: vasteIdxVoorStoel(id), sortKey: senioriteitSortKey(id, null), code, notitie: null };
       });
     }
 
-    // Vaste stoelen eerst (op senioriteit), waarnemer-slots daarna (vaste W5..W1-volgorde).
+    // Vaste stoelen eerst (op senioriteit, via dezelfde canonieke functie als
+    // Overzicht/Afdeling), waarnemer-slots daarna (vaste W5..W1-volgorde).
     kolomEntries.sort((a, b) => {
       if (a.isSlot !== b.isSlot) return a.isSlot ? 1 : -1;
       if (a.isSlot && b.isSlot) return SLOTS.indexOf(a.id) - SLOTS.indexOf(b.id);
-      if (a.sortKey !== b.sortKey) return a.sortKey < b.sortKey ? -1 : 1;
-      return a.idx - b.idx;
+      return vergelijkOpSenioriteit(a, b);
     });
 
     // Kolomkop-strings uniek maken (zeldzaam randgeval: twee kolommen met

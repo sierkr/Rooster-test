@@ -83,7 +83,7 @@ export async function renderGebView() {
     <div style="margin-top: 1.5rem;">
       <div class="summary-label" style="margin-bottom: 6px;">Vaste radiologen — parttime &amp; vakantierecht</div>
       <div class="card">
-        <p class="muted" style="margin: 0 0 10px;">Parttime: percentage van fulltime (default 100%). Vakantierecht: aantal V-dagen per jaar (default 40). Tik <b>Wissel</b> om een persoon op de stoel te wisselen vanaf een datum.</p>
+        <p class="muted" style="margin: 0 0 10px;">Parttime: percentage van fulltime (default 100%). Vakantierecht: aantal V-dagen per jaar (default 40). Tik <b>Wissel</b> om een NIEUWE persoon (zonder eigen indeling) op deze stoel te zetten vanaf een datum. Nieuwe radioloog, nog geen stoel of waarnemer-plek? Gebruik <b>+ Nieuwe stoel aanmaken</b> hieronder. Bestaande waarnemer vast in dienst nemen mét behoud van diens indeling? Gebruik <b>→ Vast</b> bij die waarnemer.</p>
         <div style="display: grid; grid-template-columns: 50px 1fr 120px 56px 56px 120px; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 11px; font-weight: 600; color: #5f5e5a;">
           <div>Code</div>
           <div>Naam</div>
@@ -134,6 +134,7 @@ export async function renderGebView() {
           `;
         }).join('')}
         <button id="btnOpslaanVast" class="btn" disabled style="width: 100%; margin-top: 10px; opacity: 0.5; cursor: not-allowed;" onclick="window.opslaanParttime()">Opslaan</button>
+        <button class="btn" style="width: 100%; margin-top: 6px; font-size: 12px;" onclick="window.openNieuweStoelSheet()">➕ Nieuwe stoel aanmaken</button>
         <button class="btn" style="width: 100%; margin-top: 6px; font-size: 11px; opacity: 0.85;" onclick="window.initialiseerPersoonIds()" title="Eenmalig: ken persoon-id's toe aan de huidige bezetters">Persoon-id's toekennen</button>
       </div>
     </div>
@@ -176,16 +177,26 @@ export async function renderGebView() {
     <div style="margin-top: 1.5rem;">
       <div class="summary-label" style="margin-bottom: 6px;">Waarnemers (W-slots)</div>
       <div class="card">
-        <p class="muted" style="margin: 0 0 10px;">Alleen "actief" waarnemers verschijnen in het beheer-raster en in tellingen. <b>Wissel</b> om persoon op deze W-stoel te wisselen vanaf datum. <b>→ Vast</b> om een waarnemer per datum vast te maken in een vaste-stoel.</p>
+        <p class="muted" style="margin: 0 0 10px;">Alleen "actief" waarnemers verschijnen in het beheer-raster en in tellingen. <b>Wissel</b> zet een NIEUWE waarnemer op dit W-slot vanaf een datum, zonder migratie. <b>→ Vast</b> maakt de huidige waarnemer per datum de bezetter van een vaste stoel, mét behoud van diens indeling, wensen en diensten.</p>
         ${SLOTS.map(slotId => {
-          const slot = state.radiologen.find(r => r.id === slotId) || { id: slotId, code: '', achternaam: '', actief: false };
+          const slot = state.radiologen.find(r => r.id === slotId) || { id: slotId, actief: false };
+          // Weergave altijd via bezettingOpDatum (vandaag), nooit via de rauwe
+          // top-level code/achternaam-velden: bij een →Vast-migratie worden die
+          // direct leeggemaakt zodra er op "Doorvoeren" wordt geklikt, óók als
+          // de ingangsdatum in de toekomst ligt. De bezetting_historie houdt wél
+          // rekening met de datum (de entry blijft geldig t/m de dag vóór de
+          // ingangsdatum), dus zo blijft de waarnemer zichtbaar tot de wissel
+          // écht ingaat — in plaats van meteen te "verdwijnen".
+          const huidig = bezettingOpDatum(slotId, vandaagIso());
+          const code = huidig?.code || '';
+          const naam = huidig?.achternaam || '';
           const isActief = slot.actief !== false;
-          const isLeeg = !slot.code || slot.actief === false;
+          const isLeeg = !code || slot.actief === false;
           return `
             <div style="display: grid; grid-template-columns: 32px 1fr 1fr 38px 60px 60px; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
               <div style="font-weight: 500; color: #5f5e5a;">${slotId}</div>
-              <input type="text" class="input" id="inv_code_${slotId}" placeholder="Code" maxlength="4" value="${(slot.code||'').replace(/"/g,'&quot;')}" oninput="window.gebMarkDirty('wnr')" style="padding: 6px 8px; font-size: 13px;">
-              <input type="text" class="input" id="inv_naam_${slotId}" placeholder="Achternaam" value="${(slot.achternaam||'').replace(/"/g,'&quot;')}" oninput="window.gebMarkDirty('wnr')" style="padding: 6px 8px; font-size: 13px;">
+              <input type="text" class="input" id="inv_code_${slotId}" placeholder="Code" maxlength="4" value="${code.replace(/"/g,'&quot;')}" oninput="window.gebMarkDirty('wnr')" style="padding: 6px 8px; font-size: 13px;">
+              <input type="text" class="input" id="inv_naam_${slotId}" placeholder="Achternaam" value="${naam.replace(/"/g,'&quot;')}" oninput="window.gebMarkDirty('wnr')" style="padding: 6px 8px; font-size: 13px;">
               <span class="toggle-switch ${isActief ? 'aan' : ''}" id="inv_act_${slotId}" onclick="this.classList.toggle('aan'); window.gebMarkDirty('wnr')"></span>
               <button class="btn" style="font-size: 11px; padding: 6px 4px;" onclick="window.openWisselSheet('${slotId}')">Wissel</button>
               <button class="btn" style="font-size: 11px; padding: 6px 4px; ${isLeeg ? 'opacity:0.4; cursor:not-allowed;' : ''}" ${isLeeg ? 'disabled' : ''} onclick="window.openMaakVastSheet('${slotId}')" title="Maak vast in een vaste-stoel">→ Vast</button>
@@ -616,13 +627,26 @@ window.opslaanParttime = async function() {
 
 window.opslaanInvallers = async function() {
   try {
+    // Eerst valideren: een "actieve" waarnemer moet een code hebben, anders
+    // is de rij straks nergens herkenbaar in het rooster. Vroeger viel een
+    // leeg code-veld terug op de letterlijke slot-ID (bv. "W4") — dat werd
+    // dan als échte data opgeslagen en bleef als rommel in de lijst staan.
+    // Nu wordt een leeg code-veld altijd ook echt leeg opgeslagen.
+    for (const slotId of SLOTS) {
+      const code = document.getElementById('inv_code_' + slotId).value.trim();
+      const actief = document.getElementById('inv_act_' + slotId).classList.contains('aan');
+      if (actief && !code) {
+        alert(`Waarnemer ${slotId} staat op "actief" maar heeft geen code. Vul een code in of zet de schakelaar uit.`);
+        return;
+      }
+    }
     for (const slotId of SLOTS) {
       const code = document.getElementById('inv_code_' + slotId).value.trim();
       const achternaam = document.getElementById('inv_naam_' + slotId).value.trim();
       const actief = document.getElementById('inv_act_' + slotId).classList.contains('aan');
       const stoel = state.radiologen.find(r => r.id === slotId);
       const update = {
-        id: slotId, code: code || slotId, achternaam: achternaam || '', actief, isSlot: true,
+        id: slotId, code: code || '', achternaam: achternaam || '', actief, isSlot: true,
       };
       // Bezette W-stoel (échte naam ingevuld) zonder persoon_id krijgt er één,
       // zodat de identiteit meeloopt als deze waarnemer later vast in dienst
@@ -636,7 +660,7 @@ window.opslaanInvallers = async function() {
       const hist = Array.isArray(stoel?.bezetting_historie) ? stoel.bezetting_historie.map(e => ({ ...e })) : [];
       let open = hist.find(e => !e.tot);
       if (open) {
-        open.code = code || slotId;
+        open.code = code || '';
         open.achternaam = achternaam || '';
         if (update.persoon_id && !open.persoon_id) open.persoon_id = update.persoon_id;
         update.bezetting_historie = hist;
@@ -1009,6 +1033,92 @@ window.opslaanWissel = async function(slotId) {
     alert(`Bezetting van ${slotId} aangepast: ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}.`);
   } catch (e) {
     alert('Opslaan mislukt: ' + e.message);
+  }
+};
+
+// ==== Nieuwe stoel: losse actie, los van Wissel en →Vast =====================
+// Expliciete, vindbare manier om een gloednieuwe vaste stoel aan te maken voor
+// een radioloog die nog nergens in de app staat (geen bestaande waarnemer, geen
+// bestaande stoel). Voorheen kon dit alleen impliciet via de "➕ Nieuwe stoel"-
+// optie in de →Vast-dropdown van een waarnemer — verwarrend, want dat vereiste
+// eerst een waarnemer aan te maken. Voor een bestaande waarnemer die je vast in
+// dienst wilt nemen mét behoud van diens indeling/wensen, blijft →Vast (met de
+// "➕ Nieuwe stoel"-optie erin) de juiste weg.
+window.openNieuweStoelSheet = function() {
+  const defDatum = vandaagIso();
+  document.getElementById('sheetTitle').textContent = 'Nieuwe stoel aanmaken';
+  document.getElementById('sheetSub').textContent = 'Een vaste stoel met een nieuwe radioloog, per ingangsdatum';
+  document.getElementById('sheetBody').innerHTML = `
+    <div class="form-info" style="margin-bottom: 12px; font-size: 12px;">
+      Er komt een nieuwe kolom bij in het overzicht, zonder gekoppelde indeling of historie. Wil je in plaats daarvan een bestaande waarnemer vast in dienst nemen mét behoud van diens indeling, wensen en diensten? Gebruik dan <b>→ Vast</b> bij die waarnemer in de Waarnemers-sectie hieronder.
+    </div>
+    <div class="form-field"><label class="form-label">Code (initialen, max 4)</label><input type="text" class="input" id="nsCode" maxlength="4" placeholder="bv. AV"></div>
+    <div class="form-field"><label class="form-label">Voornaam</label><input type="text" class="input" id="nsVoornaam" placeholder="Anna"></div>
+    <div class="form-field"><label class="form-label">Achternaam</label><input type="text" class="input" id="nsAchternaam" placeholder="de Vries"></div>
+    <div style="display: flex; gap: 12px;">
+      <div class="form-field" style="flex: 1;"><label class="form-label">Parttime %</label><input type="number" class="input" id="nsPf" value="100" min="10" max="100" step="1"></div>
+      <div class="form-field" style="flex: 1;"><label class="form-label">Vakantierecht</label><input type="number" class="input" id="nsVr" value="40" min="0" max="100" step="1"></div>
+    </div>
+    <div class="form-field"><label class="form-label">Ingangsdatum</label><input type="date" class="input" id="nsDatum" value="${defDatum}"></div>
+    <div class="form-field"><label class="form-label">In dienst / senioriteit <span class="muted" style="font-weight:400;">(bepaalt kolomvolgorde, oudste = links)</span></label><input type="date" class="input" id="nsInDienst" value="${defDatum}"></div>
+    <div style="display: flex; gap: 8px; margin-top: 1rem;">
+      <button class="btn" style="flex: 1;" onclick="window.closeSheet()">Annuleren</button>
+      <button class="btn btn-primary" style="flex: 1;" onclick="window.nieuweStoelDoorvoeren()">Aanmaken</button>
+    </div>
+  `;
+  openSheet();
+};
+
+window.nieuweStoelDoorvoeren = async function() {
+  const code = document.getElementById('nsCode').value.trim();
+  const voornaam = document.getElementById('nsVoornaam').value.trim();
+  const achternaam = document.getElementById('nsAchternaam').value.trim();
+  const pf = Math.max(10, Math.min(100, parseInt(document.getElementById('nsPf').value, 10) || 100)) / 100;
+  const vr = Math.max(0, Math.min(100, parseInt(document.getElementById('nsVr').value, 10) || 40));
+  const datum = document.getElementById('nsDatum').value;
+  const inDienst = document.getElementById('nsInDienst').value || datum;
+  if (!code || !achternaam) { alert('Code en achternaam zijn verplicht.'); return; }
+  if (!datum) { alert('Kies een ingangsdatum.'); return; }
+
+  // Max 12 gelijktijdig actieve vaste stoelen (op de ingangsdatum) — zelfde
+  // grens als bij →Vast met "➕ Nieuwe stoel".
+  if (vasteRadsOpDatum(datum).length >= 12) {
+    alert('Er zijn al 12 actieve stoelen op die datum — dat is het maximum. Hef eerst een stoel op (Vertrek).');
+    return;
+  }
+
+  if (!confirm(`Nieuwe stoel aanmaken voor ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}?
+
+Er komt een kolom bij in het overzicht.`)) return;
+
+  const btn = document.querySelector('#sheetBody .btn-primary');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
+
+  try {
+    // Vers, uniek stoel-id (nooit hergebruikt) — zelfde patroon als bij een
+    // nieuwe stoel via →Vast.
+    const nieuweId = 'VS' + Date.now().toString(36);
+    const pid = nieuwPersoonId();
+    await setDoc(doc(db, 'radiologen', nieuweId), {
+      id: nieuweId, vaste_stoel: true, isSlot: false, type: 'radioloog',
+      actief: true, code, voornaam, achternaam,
+      vakantierecht: vr, parttime_factor: pf,
+      in_dienst: inDienst || null,
+      persoon_id: pid,
+      bezetting_historie: [{
+        voornaam, achternaam, code,
+        vakantierecht: vr, parttime_factor: pf,
+        in_dienst: inDienst || null,
+        persoon_id: pid,
+        van: datum, tot: null,
+      }],
+    }, { merge: true });
+    closeSheet();
+    alert(`Nieuwe stoel aangemaakt: ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}.`);
+    renderGebView();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Aanmaken'; }
+    alert('Aanmaken mislukt: ' + (e.message || e));
   }
 };
 
