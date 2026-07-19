@@ -36,6 +36,8 @@ jobs:
       - name: Installeer test-afhankelijkheden
         run: npm install
         working-directory: tests/rules
+      - name: Kopieer firestore.rules naar de testmap
+        run: cp firestore.rules tests/rules/firestore.rules
       - name: Draai rules-tests tegen de emulator
         run: npm test
         working-directory: tests/rules
