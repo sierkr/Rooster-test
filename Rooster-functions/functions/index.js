@@ -9,11 +9,18 @@
  *   - gebruikerAanmaken: maakt Auth-account + Firestore-profiel in één
  *   - gebruikerVerwijderen: verwijdert Auth-account én Firestore-profiel
  *   - gebruikerResetWachtwoord: zet wachtwoord terug naar standaard + wachtwoord_gewijzigd: false
+ *   - agendaFeed: iCal-feed voor agenda-abonnementen
+ *   - auditIndeling (v3.28.0, K3): server-side, onvervalsbaar audit-log —
+ *     schrijft bij ELKE wijziging aan een indeling-doc een diff-record naar
+ *     de collectie audit_log, inclusief de uid van de veroorzaker (auth-
+ *     context). Clients kunnen audit_log niet schrijven (zie firestore.rules);
+ *     dit spoor kan dus niet worden vervalst of overgeslagen.
  *
- * Alle functies controleren dat de aanroeper een beheerder is.
+ * Alle callable functies controleren dat de aanroeper een beheerder is.
  */
 
 const { onCall, HttpsError, onRequest } = require("firebase-functions/v2/https");
+const { onDocumentWrittenWithAuthContext } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
@@ -26,6 +33,29 @@ const REGION = "europe-west1";
 // ============================================================================
 // Helpers
 // ============================================================================
+
+// v3.30.0 (H4): server-side omgevingscheck. De app stuurt bij account-
+// functies zijn omgeving mee ('prod'/'test', bepaald uit de URL). Deze
+// functies werken ALTIJD op de live database + Auth; een aanroep die
+// expliciet uit de testomgeving komt wordt daarom server-side geweigerd —
+// voorheen was die blokkade alleen client-side. (Een ontbrekende omgeving
+// wordt toegestaan voor achterwaartse compatibiliteit; de client-side
+// blokkade blijft daarnaast bestaan.)
+function assertProductieOmgeving(data) {
+  if (data && data.omgeving && data.omgeving !== "prod") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Gebruikersbeheer is uitgeschakeld buiten de productieomgeving — dit zou de live database raken."
+    );
+  }
+}
+
+// v3.30.0 (H3): willekeurig tijdelijk wachtwoord (crypto), 14 tekens.
+function genereerTijdelijkWachtwoord() {
+  const chars = "abcdefghijkmnpqrstuvwxyz23456789";
+  const buf = require("crypto").randomBytes(14);
+  return Array.from(buf, (b) => chars[b % chars.length]).join("");
+}
 
 async function assertBeheerder(auth) {
   if (!auth) {
@@ -56,6 +86,7 @@ function valideerRol(rol) {
 // Output: { uid, email }
 // ============================================================================
 exports.gebruikerAanmaken = onCall({ region: REGION }, async (request) => {
+  assertProductieOmgeving(request.data);
   const beheerder = await assertBeheerder(request.auth);
 
   const { email, wachtwoord, rol, radioloog_id, naam, weergavenaam } = request.data || {};
@@ -63,8 +94,8 @@ exports.gebruikerAanmaken = onCall({ region: REGION }, async (request) => {
   if (!email || !wachtwoord) {
     throw new HttpsError("invalid-argument", "E-mail en wachtwoord zijn verplicht");
   }
-  if (wachtwoord.length < 6) {
-    throw new HttpsError("invalid-argument", "Wachtwoord min. 6 tekens");
+  if (wachtwoord.length < 12) {
+    throw new HttpsError("invalid-argument", "Wachtwoord min. 12 tekens");
   }
   valideerRol(rol);
 
@@ -119,6 +150,7 @@ exports.gebruikerAanmaken = onCall({ region: REGION }, async (request) => {
 // Output: { verwijderd: true }
 // ============================================================================
 exports.gebruikerVerwijderen = onCall({ region: REGION }, async (request) => {
+  assertProductieOmgeving(request.data);
   const beheerder = await assertBeheerder(request.auth);
   const { uid } = request.data || {};
 
@@ -156,10 +188,13 @@ exports.gebruikerVerwijderen = onCall({ region: REGION }, async (request) => {
 // ============================================================================
 // gebruikerResetWachtwoord
 // Input: { uid }
-// Zet wachtwoord terug naar standaard en markeert wachtwoord_gewijzigd: false,
-// zodat de gebruiker bij de volgende login het eerste-aanmelding proces doorloopt.
+// v3.30.0 (H3): genereert een WILLEKEURIG tijdelijk wachtwoord (voorheen een
+// vast, in de code leesbaar standaardwachtwoord), markeert
+// wachtwoord_gewijzigd: false en geeft het tijdelijke wachtwoord eenmalig
+// terug aan de aanroepende beheerder. Het wordt nergens opgeslagen.
 // ============================================================================
 exports.gebruikerResetWachtwoord = onCall({ region: REGION }, async (request) => {
+  assertProductieOmgeving(request.data);
   await assertBeheerder(request.auth);
   const { uid } = request.data || {};
 
@@ -167,7 +202,6 @@ exports.gebruikerResetWachtwoord = onCall({ region: REGION }, async (request) =>
     throw new HttpsError("invalid-argument", "UID is verplicht");
   }
 
-  const STANDAARD_WACHTWOORD = "RoosterZMC";
   const auth = getAuth();
   const db = getFirestore();
 
@@ -177,10 +211,12 @@ exports.gebruikerResetWachtwoord = onCall({ region: REGION }, async (request) =>
     throw new HttpsError("not-found", "Gebruiker niet gevonden");
   }
 
+  const tijdelijkWachtwoord = genereerTijdelijkWachtwoord();
+
   try {
-    await auth.updateUser(uid, { password: STANDAARD_WACHTWOORD });
+    await auth.updateUser(uid, { password: tijdelijkWachtwoord });
     await db.collection("gebruikers").doc(uid).update({ wachtwoord_gewijzigd: false });
-    return { ok: true };
+    return { ok: true, tijdelijkWachtwoord };
   } catch (err) {
     throw new HttpsError("internal", `Reset mislukt: ${err.message}`);
   }
@@ -191,9 +227,29 @@ exports.gebruikerResetWachtwoord = onCall({ region: REGION }, async (request) =>
 // Geeft een iCal-feed (.ics) terug met de indeling van de gekoppelde radioloog
 // voor de komende 90 dagen en de afgelopen 30 dagen.
 // ============================================================================
+// v3.30.0 (M1): eenvoudige best-effort rate limiting per token (per warme
+// instance): max 30 verzoeken per 5 minuten. Beschermt tegen brute-force op
+// tokens en tegen agenda-apps die doorslaan in poll-frequentie.
+const _feedVerzoeken = new Map(); // token -> [timestamps]
+function feedRateLimitOverschreden(token) {
+  const nu = Date.now();
+  const lijst = (_feedVerzoeken.get(token) || []).filter((t) => nu - t < 5 * 60 * 1000);
+  lijst.push(nu);
+  _feedVerzoeken.set(token, lijst);
+  if (_feedVerzoeken.size > 1000) _feedVerzoeken.clear(); // geheugen-vangnet
+  return lijst.length > 30;
+}
+
 exports.agendaFeed = onRequest({ region: REGION, cors: false }, async (req, res) => {
   const token = req.query.token;
-  if (!token) { res.status(400).send('Token ontbreekt'); return; }
+  // v3.30.0 (M1): tokenformaat afdwingen (UUID) — alles daarbuiten is per
+  // definitie ongeldig en verdient geen database-query.
+  if (!token || !/^[0-9a-f-]{36}$/i.test(String(token))) {
+    res.status(404).send('Ongeldige of ingetrokken link'); return;
+  }
+  if (feedRateLimitOverschreden(String(token))) {
+    res.status(429).send('Te veel verzoeken — probeer later opnieuw'); return;
+  }
 
   const db = getFirestore();
 
@@ -268,13 +324,12 @@ exports.agendaFeed = onRequest({ region: REGION, cors: false }, async (req, res)
     const codeArray = Array.isArray(codes) ? codes : [codes];
     const label = codeArray.map(c => `${c} · ${functieNaam(c)}`).join(', ');
 
-    // DESCRIPTION: cel-opmerking en dag-opmerking
+    // DESCRIPTION: alleen de EIGEN cel-opmerking. v3.30.0 (M1/M6): de
+    // dag-opmerking is uit de feed gehaald — die kan informatie over
+    // anderen bevatten en hoort niet thuis in een extern (token-beveiligd
+    // maar onge-authenticeerd) kanaal. In de app blijft hij gewoon zichtbaar.
     const celOpm = dag.cel_opmerkingen?.[radId] || '';
-    const dagOpm = dag.opmerking || '';
-    const delen = [];
-    if (celOpm) delen.push(`Opmerking: ${celOpm}`);
-    if (dagOpm) delen.push(`Dag: ${dagOpm}`);
-    const beschrijving = delen.join('\n');
+    const beschrijving = celOpm ? `Opmerking: ${celOpm}` : '';
     const datumStr = dag.datum.replace(/-/g, '');
 
     ical.push('BEGIN:VEVENT');
@@ -291,6 +346,9 @@ exports.agendaFeed = onRequest({ region: REGION, cors: false }, async (req, res)
 
   res.set('Content-Type', 'text/calendar; charset=utf-8');
   res.set('Content-Disposition', `attachment; filename="indeling-${radId}.ics"`);
+  // v3.30.0 (M1): niet cachen door tussenliggende proxies; 5 min client-cache
+  res.set('Cache-Control', 'private, max-age=300');
+  res.set('X-Content-Type-Options', 'nosniff');
   res.status(200).send(ical.join('\r\n'));
 });
 
@@ -300,3 +358,77 @@ function toIcalDate(d) {
 function escIcal(s) {
   return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
 }
+
+// ============================================================================
+// auditIndeling (v3.28.0, K3)
+// Firestore-trigger op indeling/{datum} in de (default) database.
+// Schrijft per wijziging één diff-record naar audit_log/ met:
+//   - wie   (auth_uid + auth_type uit de auth-context van de write)
+//   - wat   (per veld/sleutel: van → naar; alleen de daadwerkelijk
+//            gewijzigde sleutels van maps als toewijzingen/cel_opmerkingen)
+//   - wanneer (servertijd) en op welke datum (doc-id)
+// Dit log wordt uitsluitend hier (Admin SDK) geschreven; de rules blokkeren
+// elke client-write. Let op: de testomgeving gebruikt de named database
+// 'test' — deze trigger bewaakt alleen productie ((default)).
+// ============================================================================
+
+// Velden met platte waarden: diff als geheel
+const AUDIT_SCALAIRE_VELDEN = [
+  "opmerking", "bespreking", "interventie", "weeknr", "dag",
+  "vakantie_min", "vakantie_rank", "vakantie_geaccordeerd", "vakantie_x",
+];
+// Map-velden: diff per sleutel (radId e.d.)
+const AUDIT_MAP_VELDEN = ["toewijzingen", "cel_opmerkingen", "dienst", "vakantie_v"];
+
+function _auditDiff(voor, na) {
+  const diff = {};
+  const eq = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+
+  for (const veld of AUDIT_SCALAIRE_VELDEN) {
+    if (!eq(voor[veld], na[veld])) {
+      diff[veld] = { van: voor[veld] === undefined ? null : voor[veld], naar: na[veld] === undefined ? null : na[veld] };
+    }
+  }
+  for (const veld of AUDIT_MAP_VELDEN) {
+    const v = voor[veld] || {};
+    const n = na[veld] || {};
+    const sleutels = new Set([...Object.keys(v), ...Object.keys(n)]);
+    const veldDiff = {};
+    for (const k of sleutels) {
+      if (!eq(v[k], n[k])) {
+        veldDiff[k] = { van: v[k] === undefined ? null : v[k], naar: n[k] === undefined ? null : n[k] };
+      }
+    }
+    if (Object.keys(veldDiff).length > 0) diff[veld] = veldDiff;
+  }
+  return diff;
+}
+
+exports.auditIndeling = onDocumentWrittenWithAuthContext(
+  { region: REGION, document: "indeling/{datum}" },
+  async (event) => {
+    const voorSnap = event.data && event.data.before;
+    const naSnap = event.data && event.data.after;
+    const voor = voorSnap && voorSnap.exists ? voorSnap.data() : {};
+    const na = naSnap && naSnap.exists ? naSnap.data() : {};
+
+    const aangemaakt = !(voorSnap && voorSnap.exists);
+    const verwijderd = !(naSnap && naSnap.exists);
+    const velden = _auditDiff(voor, na);
+
+    // Niets materieel gewijzigd (bv. idempotente merge van alleen metadata)
+    if (!aangemaakt && !verwijderd && Object.keys(velden).length === 0) return;
+
+    const db = getFirestore();
+    await db.collection("audit_log").add({
+      datum: event.params.datum,
+      tijdstip: FieldValue.serverTimestamp(),
+      event_tijd: event.time || null,
+      auth_uid: event.authId || null,
+      auth_type: event.authType || null,
+      aangemaakt,
+      verwijderd,
+      velden,
+    });
+  }
+);
