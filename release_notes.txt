@@ -1,3 +1,40 @@
+Rooster v3.32.7 — Release notes
+==================================
+
+BEHEER-TAB BLEEF SOMS BLANCO
+----------------------------------------------------------------------------
+De Beheer-tab is de enige tab die tijdens het tekenen zelf nog gegevens
+ophaalt (de app-gebruikers). Die ophaalactie had geen vangnet: mislukte hij
+een keer, dan stopte het tekenen halverwege en bleef het tabblad leeg, zonder
+melding en zonder nieuwe poging. Vlak na een nieuwe versie is zo'n hapering
+het waarschijnlijkst, want dan haalt de app al zijn bestanden opnieuw op.
+
+- Mislukt de ophaalactie, dan blijven de vorige gegevens staan en verschijnt
+  een strook met een knop "Opnieuw proberen".
+
+- De tab toont meteen "Bezig met laden..." en bij een echte fout een korte
+  melding met een knop, in plaats van een leeg scherm.
+
+IMPORT: GEEN STILLE AFLOOP MEER
+----------------------------------------------------------------------------
+- De preview meldt nu dat er nog niets is opgeslagen en dat pas de knop
+  "Importeer" wegschrijft. Het overzicht zag eruit als een afgeronde import.
+
+- De bevestiging noemt de jaren en aantallen die vervangen worden, zoals
+  "je vervangt 365 dagen in 2027". Een ongewenst jaar valt zo op het laatste
+  moment nog op, ook als het jaarfilter uit staat.
+
+- Regels met een datum zonder jaartal worden geteld en gemeld, met
+  rijnummers en voorbeelden. Voorheen verdwenen ze geruisloos.
+
+- Weiger je de backup, dan meldt de app "Import afgebroken - er is niets
+  gewijzigd." in plaats van zonder een woord terug te keren.
+
+EXPORT
+----------------------------------------------------------------------------
+- De exportknop toont het gekozen jaar ("Exporteer 2027"), zodat je niet per
+  ongeluk het huidige jaar exporteert terwijl je een ander jaar bedoelt.
+
 Rooster v3.32.6 — Release notes
 ==================================
 

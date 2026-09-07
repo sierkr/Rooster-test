@@ -295,11 +295,26 @@ export async function actImportFile(input, renderGebView) {
     // preview met een knop die niets doet.
     let gefilterdWeg = 0;
     const jarenInBestand = new Set();
+    // v3.32.7: een datumcel zonder viercijferig jaartal (bv. de tekst "1-1" of
+    // "01-01") levert geen datum op en werd stilzwijgend overgeslagen. Nu
+    // tellen we die regels, zodat de preview ze kan melden. Volledig lege
+    // datumcellen tellen niet mee — dat zijn gewoon lege regels onder de tabel.
+    let geenDatumAantal = 0;
+    const geenDatumVoorbeelden = [];
 
     for (let r = headerRij + 1; r <= range.e.r; r++) {
       const datumCel = ws[XLSX.utils.encode_cell({ c: 1, r })];
       const isoDatum = _parseDatumCel(datumCel?.v);
-      if (!isoDatum) continue;
+      if (!isoDatum) {
+        const rauw = _celStr(datumCel);
+        if (rauw) {
+          geenDatumAantal++;
+          if (geenDatumVoorbeelden.length < 5) {
+            geenDatumVoorbeelden.push(`rij ${r + 1}: "${rauw}"`);
+          }
+        }
+        continue;
+      }
       jarenInBestand.add(isoDatum.slice(0, 4));
       if (state.importJaar && !isoDatum.startsWith(state.importJaar + '-')) { gefilterdWeg++; continue; }
 
@@ -419,6 +434,16 @@ export async function actImportFile(input, renderGebView) {
       filterJaar: state.importJaar || '',
       gefilterdWeg,
       jarenInBestand: [...jarenInBestand].sort(),
+      // v3.32.7: regels met een onleesbare datum (geen jaartal) expliciet melden.
+      geenDatumAantal,
+      geenDatumVoorbeelden,
+      // v3.32.7: aantal dagen per jaar — de bevestiging vóór het wegschrijven
+      // noemt hiermee precies welke jaren er vervangen worden.
+      dagenPerJaar: dagen.reduce((acc, d) => {
+        const j = d.datum.slice(0, 4);
+        acc[j] = (acc[j] || 0) + 1;
+        return acc;
+      }, {}),
       celOpmsAantal, dagOpmsAantal, dienstAantal, besprAantal, intervAantal,
       waarschuwingen: waarschuwingen.slice(0, 25),
       waarschuwingenTotaal: waarschuwingen.length,
@@ -537,6 +562,18 @@ export async function actImportSchrijven(renderGebView) {
     }
   }
 
+  // v3.32.7: noem de jaren en aantallen die daadwerkelijk vervangen worden.
+  // Zo zie je een ongewenst jaar op het laatste moment nog, ook als het
+  // jaarfilter uit staat. Dit is de rem die het filter zelf nooit was.
+  const perJaar = p.dagenPerJaar || p.dagen.reduce((acc, d) => {
+    const j = d.datum.slice(0, 4);
+    acc[j] = (acc[j] || 0) + 1;
+    return acc;
+  }, {});
+  const jaarRegels = Object.keys(perJaar).sort()
+    .map(j => `${perJaar[j]} dagen in ${j}`)
+    .join('\n');
+
   const jaarDeel = state.importJaar ? `alle ${state.importJaar}-dagen` : `alle dagen in het bestand`;
   const nabijWaarschuwing = nabijeCellen > 0
     ? `\n\n⚠ LET OP: ${nabijeCellen} toewijzing${nabijeCellen === 1 ? '' : 'en'} worden gewijzigd binnen ${NABIJ_DAGEN} dagen (${nabijeDatums.size} dag${nabijeDatums.size === 1 ? '' : 'en'}). Betrokken radiologen krijgen een notificatie.`
@@ -549,6 +586,7 @@ export async function actImportSchrijven(renderGebView) {
 
   const ok = confirm(
     `OVERSCHRIJVEN — ${jaarDeel} worden in Firestore vervangen door wat in '${p.bestandnaam}' staat.\n\n` +
+    `Je vervangt:\n${jaarRegels}\n\n` +
     `${p.dagen.length} dagen, ${p.celOpmsAantal} cel-opmerkingen, ${p.dagOpmsAantal} dag-opmerkingen.\n\n` +
     `Wens-statussen worden automatisch bijgewerkt.` +
     nabijWaarschuwing +
@@ -574,6 +612,9 @@ export async function actImportSchrijven(renderGebView) {
             'Wil je toch doorgaan zonder backup?'
           );
           if (!doorgaan) {
+            // v3.32.7: eerder keerde de import hier zonder één woord terug —
+            // niet te onderscheiden van een import die wél had gewerkt.
+            alert('Import afgebroken — er is niets gewijzigd.');
             state.importBezig = false;
             renderGebView();
             return;

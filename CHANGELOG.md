@@ -1,3 +1,34 @@
+## v3.32.7 — Beheer-tab, en de import zwijgt niet meer
+
+### Beheer-tab bleef soms blanco
+De Beheer-tab is de enige tab die tijdens het tekenen zelf nog gegevens
+ophaalt (de app-gebruikers). Die ophaalactie had geen vangnet: mislukte hij
+één keer — vlak na een nieuwe versie waarschijnlijk, want dan haalt de app al
+zijn bestanden opnieuw op — dan stopte het tekenen halverwege en bleef het
+tabblad leeg. Zonder melding en zonder nieuwe poging, dus pas na een paar keer
+verversen verscheen de inhoud.
+
+- De ophaalactie faalt niet langer hard: lukt hij niet, dan blijven de vorige
+  gegevens staan en verschijnt er een strook met "Opnieuw proberen".
+- De tab toont meteen "Bezig met laden…" en bij een echte fout een melding met
+  een knop, in plaats van een leeg scherm.
+
+### Import: geen stille afloop meer
+- **De preview zegt nu dat er nog niets is opgeslagen** en dat pas de knop
+  "Importeer" wegschrijft. Het overzicht met dagen en wijzigingen zag eruit
+  als een afgeronde import, terwijl er nog niets was gebeurd.
+- **De bevestiging noemt de jaren en aantallen** die vervangen worden ("je
+  vervangt 365 dagen in 2027"). Zo zie je een ongewenst jaar op het laatste
+  moment nog, ook met het jaarfilter uit.
+- **Regels met een datum zonder jaartal worden geteld en gemeld**, met
+  voorbeelden en rijnummers. Voorheen verdwenen ze geruisloos.
+- **Weiger je de backup**, dan meldt de app "Import afgebroken — er is niets
+  gewijzigd." in plaats van zonder een woord terug te keren.
+
+### Export
+- De exportknop toont het gekozen jaar ("⬇ Exporteer 2027"), zodat je niet per
+  ongeluk het huidige jaar exporteert terwijl je een ander jaar bedoelt.
+
 ## v3.32.6 — Excel-import en -export
 
 Het jaarfilter boven de importknop gooide regels stilzwijgend weg. Stond het
