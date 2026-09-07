@@ -28,9 +28,19 @@ export const EXPORT_LOG = 'export_log';
 export const AUDIT_LOG  = 'audit_log';
 export const SNAPSHOTS  = 'import_snapshots';
 
-// Hoeveel terugdraai-punten er bewaard blijven. Ouderen worden bij het maken
-// van een nieuw punt opgeruimd — anders groeit dit ongemerkt door.
-const BEWAAR_PUNTEN = 5;
+// v3.33.2: er blijft er precies ÉÉN bewaard — dat van de laatste import.
+// Terugdraaien is een noodgreep voor de import die je net verkeerd inschatte;
+// die gebruik je binnen minuten, niet drie imports later. Meer punten bewaren
+// maakte een oude knop mogelijk die stilletjes recent werk opruimt. Met één
+// punt kan dat niet: verder terug dan de laatste import bestaat gewoon niet.
+const BEWAAR_PUNTEN = 1;
+
+// Eén slot voor schrijfacties die over dezelfde roosterdagen gaan. Zonder dit
+// konden een import en een terugdraaiing tegelijk lopen en won degene die
+// toevallig als laatste klaar was.
+let _bezig = false;
+export function schrijfactieBezig() { return _bezig; }
+export function zetSchrijfactie(aan) { _bezig = !!aan; }
 
 // ---- Schrijven --------------------------------------------------------------
 
@@ -208,6 +218,7 @@ export async function maakTerugdraaiPunt(dagen, bestandsnaam) {
     });
 
     await _ruimOudePuntenOp();
+    vergeetLaatstePunt();
     return metaRef.id;
   } catch (e) {
     console.warn('maakTerugdraaiPunt mislukt', e && e.message);
@@ -215,6 +226,7 @@ export async function maakTerugdraaiPunt(dagen, bestandsnaam) {
   }
 }
 
+// Ruimt alles op behalve de BEWAAR_PUNTEN nieuwste (sinds v3.33.2: één).
 async function _ruimOudePuntenOp() {
   try {
     const snap = await getDocs(query(collection(db, SNAPSHOTS), orderBy('wanneer_lokaal', 'desc')));
@@ -229,6 +241,28 @@ async function _ruimOudePuntenOp() {
   } catch (e) {
     console.warn('opruimen terugdraai-punten mislukt', e && e.message);
   }
+}
+
+// Onthoudt het laatste punt zodat de Excel-tab het kan tonen zonder bij elke
+// hertekening opnieuw te lezen. Na een import of terugdraaiing vergeten we het.
+let _laatste = null;
+let _laatsteGeladen = false;
+
+export function vergeetLaatstePunt() { _laatste = null; _laatsteGeladen = false; }
+
+export async function laatsteTerugdraaiPunt() {
+  if (_laatsteGeladen) return _laatste;
+  try {
+    const snap = await getDocs(
+      query(collection(db, SNAPSHOTS), orderBy('wanneer_lokaal', 'desc'), limit(1))
+    );
+    _laatste = snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+  } catch (e) {
+    console.warn('laatsteTerugdraaiPunt mislukt', e && e.message);
+    _laatste = null;
+  }
+  _laatsteGeladen = true;
+  return _laatste;
 }
 
 export async function laadTerugdraaiPunt(id) {
@@ -271,6 +305,8 @@ export async function draaiTerug(id, onVoortgang = () => {}) {
     teruggedraaid_op: serverTimestamp(),
     teruggedraaid_door: state.profiel?.naam || state.profiel?.email || state.user?.uid || null,
   });
+
+  vergeetLaatstePunt();
 
   await legVast({
     soort: 'terugdraaien',

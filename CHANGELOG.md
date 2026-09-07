@@ -1,3 +1,39 @@
+## v3.33.2 — Terugdraaien: één punt, één plek
+
+Twee ontwerpfouten uit 3.33.1 rechtgezet.
+
+### Eén terugdraai-punt, niet vijf
+Terugdraaien is een noodgreep voor de import die je net verkeerd inschatte —
+die gebruik je binnen minuten, niet drie imports later. Vijf punten bewaren
+maakte juist het gevaar mogelijk waar het om ging: een oude knop die stilletjes
+recent werk opruimt.
+
+Er blijft er nu precies één: dat van de laatste import. Een nieuwe import
+vervangt het. Verder terug grijpen dan de laatste import kan dus niet meer —
+niet omdat het verboden is, maar omdat het niet bestaat.
+
+### De knop staat bij de import, niet in het logboek
+Wie zich vergist heeft staat op de Excel-tab. Daar staat nu, direct onder de
+import, welk bestand als laatste is ingelezen, wanneer, door wie, hoeveel dagen
+— met de knop eronder. Het logboek rapporteert alleen; daar staat nog wél of
+een import is teruggedraaid.
+
+(De backup-knop onder Overige instellingen blijft wat hij was: de hele database
+terugzetten. Een ander gereedschap, een andere plek.)
+
+### Het venster verschijnt meteen
+De knop haalde eerst het terugdraai-punt op en toonde pas dáárna het venster.
+Al die tijd gebeurde er zichtbaar niets — soms seconden, en dan lijkt het alsof
+de knop kapot is. Nu verschijnt het venster direct, uit gegevens die al op het
+scherm staan; de database wordt pas aangeraakt nadat je bevestigt. Tijdens het
+terugdraaien staat er "Bezig met terugdraaien…" en is de knop uitgeschakeld.
+
+### Eén schrijfactie tegelijk
+Een import en een terugdraaiing konden tegelijk over dezelfde dagen lopen —
+degene die toevallig als laatste klaar was, won. Dat kan niet meer: wie als
+tweede begint krijgt "Er loopt al een import of terugdraaiing. Wacht tot die
+klaar is."
+
 ## v3.33.1 — Een import terugdraaien is nu een knop
 
 Herstel na een verkeerde import hing tot nu toe aan twee dingen die bij één

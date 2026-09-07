@@ -1,3 +1,26 @@
+Rooster v3.33.2 — Release notes
+==================================
+
+TERUGDRAAIEN: EEN PUNT, EEN PLEK
+----------------------------------------------------------------------------
+- Er blijft nog maar EEN terugdraai-punt bewaard: dat van de laatste import.
+  Een nieuwe import vervangt het. Verder terug grijpen dan de laatste import
+  kan daarmee niet meer.
+
+- De knop staat nu op de Excel-tab, direct onder de import, met welk bestand
+  als laatste is ingelezen, wanneer, door wie en hoeveel dagen. Uit het
+  logboek is de knop verdwenen; daar staat alleen nog of een import is
+  teruggedraaid.
+
+- Het venster verschijnt meteen in plaats van na een onzichtbare wachttijd.
+  De database wordt pas aangeraakt nadat je bevestigt. Tijdens het
+  terugdraaien staat er "Bezig met terugdraaien..." en is de knop uit.
+
+- Een import en een terugdraaiing kunnen niet meer tegelijk lopen.
+
+De backup-knop onder Overige instellingen blijft ongewijzigd: dat is de hele
+database terugzetten, een ander gereedschap op een andere plek.
+
 Rooster v3.33.1 — Release notes
 ==================================
 

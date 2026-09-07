@@ -15,7 +15,10 @@ import { maakClientBackup } from './backup-client.js';
 // sommige browsers onderdrukt, waardoor de import geruisloos niets deed.
 import { meld, bevestig } from './dialoog.js';
 // v3.33.0: elke import laat voortaan een spoor na in het logboek.
-import { legVast, tel, maakTerugdraaiPunt } from './logboek.js';
+import {
+  legVast, tel, maakTerugdraaiPunt,
+  schrijfactieBezig, zetSchrijfactie, vergeetLaatstePunt,
+} from './logboek.js';
 
 // Horizon: wijzigingen binnen N dagen worden als "nabij" beschouwd
 const NABIJ_DAGEN = 30;
@@ -550,6 +553,13 @@ export async function actImportSchrijven(renderGebView) {
     await meld('Geen rechten', 'Alleen een beheerder kan een import wegschrijven (Firestore-rechten).');
     return;
   }
+  // v3.33.2: één schrijfactie tegelijk. Voorheen kon een import starten terwijl
+  // een terugdraaiing nog liep — beide schreven dan over dezelfde dagen en won
+  // degene die toevallig als laatste klaar was.
+  if (schrijfactieBezig()) {
+    await meld('Even wachten', 'Er loopt al een import of terugdraaiing. Wacht tot die klaar is.');
+    return;
+  }
   // Tel wijzigingen binnen de 30-dagengrens vóór bevestiging
   const vandaag = vandaagIso();
   const grens   = plusDagen(vandaag, NABIJ_DAGEN);
@@ -603,6 +613,7 @@ export async function actImportSchrijven(renderGebView) {
   if (!ok) return;
 
   state.importBezig = true;
+  zetSchrijfactie(true);
   renderGebView();
   try {
     // 0a. Terugdraai-punt (v3.33.1). Bewaart de huidige inhoud van precies de
@@ -622,9 +633,7 @@ export async function actImportSchrijven(renderGebView) {
       );
       if (!doorgaan) {
         await meld('Import afgebroken', 'Er is niets gewijzigd.');
-        state.importBezig = false;
-        renderGebView();
-        return;
+        return; // het slot en importBezig worden in de finally hersteld
       }
     }
 
@@ -661,9 +670,7 @@ export async function actImportSchrijven(renderGebView) {
           // v3.32.7: eerder keerde de import hier zonder één woord terug —
           // niet te onderscheiden van een import die wél had gewerkt.
           await meld('Import afgebroken', 'Er is niets gewijzigd.');
-          state.importBezig = false;
-          renderGebView();
-          return;
+          return; // het slot en importBezig worden in de finally hersteld
         }
       }
     }
@@ -757,11 +764,13 @@ export async function actImportSchrijven(renderGebView) {
     await meld('Import klaar', berichtDelen.join('\n'));
 
     state.importPreview = null;
+    vergeetLaatstePunt();
   } catch (e) {
     console.error('actImportSchrijven', e);
     await meld('Schrijven mislukt', String(e.message || e));
   } finally {
     state.importBezig = false;
+    zetSchrijfactie(false);
     renderGebView();
   }
 }

@@ -1,4 +1,8 @@
-// Logboek-scherm (v3.33.0) — Beheer → Control → Logboek.
+// Logboek-scherm — Beheer → Control → Logboek.
+//
+// v3.33.2: dit scherm rapporteert alleen. De terugdraai-knop stond hier eerst,
+// maar hoort bij de import: wie zich vergist heeft staat op de Excel-tab, niet
+// in het logboek. Hier staat nog wél of een import is teruggedraaid.
 //
 // Twee tabbladen:
 //   "Wie deed wat"       — venster op de bestaande collectie audit_log, die
@@ -12,9 +16,7 @@ import { state } from '../state.js';
 import { esc } from '../helpers.js';
 import {
   laadExportLog, laadAuditLog, naamVanUid, tijdTekst, diffTekst,
-  laadTerugdraaiPunt, draaiTerug,
 } from '../logboek.js';
-import { meld, bevestig } from '../dialoog.js';
 
 const _st = {
   tab: 'audit',          // 'audit' | 'export'
@@ -104,6 +106,12 @@ function _exportHtml() {
       </div>`;
   }
 
+  // v3.33.2: welke imports zijn teruggedraaid? Dat staat als eigen regel in
+  // ditzelfde logboek, dus dat kost geen extra leesactie.
+  const teruggedraaideIds = new Set(
+    rijen.filter(x => x.soort === 'terugdraaien' && x.snapshot_id).map(x => x.snapshot_id)
+  );
+
   const lijst = rijen.map(r => {
     const isImport = r.soort === 'import';
     const kleur = r.soort === 'terugdraaien' ? '#6b1414' : (isImport ? '#6b3a00' : '#1a4a2a');
@@ -134,12 +142,8 @@ function _exportHtml() {
         </div>
         ${perKolom ? `<div class="muted" style="font-size:11px; margin-top:2px;">per stoel: ${perKolom}</div>` : ''}
         ${isImport && r.jaarfilter ? `<div class="muted" style="font-size:11px;">jaarfilter stond op ${esc(r.jaarfilter)}</div>` : ''}
-        ${isImport && r.snapshot_id ? `
-          <button class="btn" style="margin-top:6px; padding:4px 10px; font-size:12px;"
-            onclick="window.logboekTerugdraaien('${esc(r.snapshot_id)}')">↩ Deze import terugdraaien</button>
-        ` : ''}
-        ${isImport && !r.snapshot_id ? `
-          <div class="muted" style="font-size:11px; margin-top:4px;">Geen terugdraai-punt bewaard bij deze import.</div>
+        ${isImport && teruggedraaideIds.has(r.snapshot_id) ? `
+          <div style="margin-top:4px; color:#6b1414;"><b>Teruggedraaid.</b></div>
         ` : ''}
         ${isTerug ? `<div style="margin-top:3px;">${r.hersteld || 0} dagen hersteld, ${r.verwijderd || 0} verwijderd.</div>` : ''}
       </div>`;
@@ -246,39 +250,3 @@ window.logboekLaad = async () => {
   }
 };
 
-// v3.33.1: een import terugdraaien vanuit het logboek. Dit zet precies de dagen
-// terug die die import overschreef — geen bestand, geen wachtwoord.
-window.logboekTerugdraaien = async (snapId) => {
-  try {
-    const punt = await laadTerugdraaiPunt(snapId);
-    if (!punt) {
-      await meld('Niet meer beschikbaar',
-        'Dit terugdraai-punt bestaat niet meer. Er blijven er vijf bewaard; oudere worden automatisch opgeruimd.');
-      return;
-    }
-    if (punt.teruggedraaid) {
-      await meld('Al teruggedraaid',
-        `Deze import is al teruggedraaid op ${tijdTekst(punt.teruggedraaid_op)}${punt.teruggedraaid_door ? ' door ' + punt.teruggedraaid_door : ''}.`);
-      return;
-    }
-    const ok = await bevestig(
-      'Import terugdraaien',
-      `Je zet ${punt.aantal_dagen || 0} dagen (${punt.jaren || '?'}) terug naar hoe ze waren vlak vóór de import van '${punt.bestandsnaam || 'onbekend bestand'}'.\n\n` +
-      `Alles wat sinds die import op déze dagen is gewijzigd, gaat daarmee verloren. Dagen die vóór de import niet bestonden worden verwijderd.\n\n` +
-      `Andere dagen en de rest van de database blijven onaangeroerd.`,
-      'Terugdraaien', 'Annuleren'
-    );
-    if (!ok) return;
-
-    _st.bezig = true; renderLogboek();
-    const { hersteld, verwijderd } = await draaiTerug(snapId);
-    _st.exportRijen = await laadExportLog();
-    await meld('Teruggedraaid', `${hersteld} dagen hersteld, ${verwijderd} dagen verwijderd.`);
-  } catch (e) {
-    console.error('logboekTerugdraaien', e);
-    await meld('Terugdraaien mislukt', String(e.message || e));
-  } finally {
-    _st.bezig = false;
-    renderLogboek();
-  }
-};
