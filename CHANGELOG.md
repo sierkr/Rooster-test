@@ -1,3 +1,49 @@
+## v3.33.1 — Een import terugdraaien is nu een knop
+
+Herstel na een verkeerde import hing tot nu toe aan twee dingen die bij één
+persoon lagen: een backupbestand op hún computer, en een wachtwoord in hún
+hoofd. Raakte één van beide zoek, dan was de backup er wel maar had je er
+niets aan. En omdat dat wachtwoordritueel bij élke import terugkwam, was het
+precies de stap die werd weggeklikt.
+
+Bovendien is een volledige database-backup een moker voor wat er in de praktijk
+misgaat: één import.
+
+### Terugdraai-punt
+Vlak vóór het wegschrijven bewaart de app de huidige inhoud van precies de
+dagen die de import gaat overschrijven — in de database zelf, niet in een
+bestand. In het logboek staat bij elke import voortaan de knop **"Deze import
+terugdraaien"**.
+
+- Geen bestand, geen wachtwoord: elke beheerder kan het, vanaf elk apparaat,
+  ook een week later.
+- Het raakt alleen de dagen die die import aanraakte. De rest van de database
+  blijft onaangeroerd.
+- Dagen die vóór de import nog niet bestonden worden bij terugdraaien weer
+  verwijderd, zodat de stand exact terugkomt.
+- De vijf nieuwste punten blijven bewaard; oudere worden bij een nieuwe import
+  automatisch opgeruimd.
+- Opslag is verwaarloosbaar: een heel jaar past in twaalf maand-blokjes van
+  enkele kilobytes.
+
+Lukt het bewaren van het punt niet, dan vraagt de app of je toch wilt doorgaan.
+
+### Mislukte backup loopt niet meer stilzwijgend door
+Ging er tijdens het maken van de backup iets fout, dan werd die fout opgevangen
+met alleen een regel in de console en liep de import gewoon door — zonder vraag
+en zonder melding. Zo kon een import zonder backup gebeuren zonder dat iemand
+het merkte.
+
+De app stelt nu altijd de vraag, met de foutmelding erbij én met de stand van
+het terugdraai-punt ("dat is er wél, dus je kunt hem via het logboek
+terugdraaien"). De backup blijft bestaan als breed vangnet, maar is niet langer
+de enige weg terug.
+
+### Logboek
+Een teruggedraaide import komt als eigen regel in "Exports en imports", met het
+aantal herstelde en verwijderde dagen. Bij een import zonder terugdraai-punt
+staat dat er expliciet bij.
+
 ## v3.33.0 — Logboek: wie werkte wanneer, en wat zat er in dat Excel-bestand
 
 Nieuw scherm onder **Beheer → Control → Logboek**, met twee tabbladen.
