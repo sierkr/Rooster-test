@@ -11,6 +11,9 @@ import { db, IS_TEST_DB } from './firebase-init.js';
 import { state, DAGEN_NL } from './state.js';
 import { isoWeekVan, vandaagIso, plusDagen, kolomNaarRadId, wensMatcht, hoofdLetterCode } from './helpers.js';
 import { maakClientBackup } from './backup-client.js';
+// v3.32.8: eigen dialoogvensters i.p.v. native alert/confirm — die worden door
+// sommige browsers onderdrukt, waardoor de import geruisloos niets deed.
+import { meld, bevestig } from './dialoog.js';
 
 // Horizon: wijzigingen binnen N dagen worden als "nabij" beschouwd
 const NABIJ_DAGEN = 30;
@@ -459,7 +462,7 @@ export async function actImportFile(input, renderGebView) {
     };
   } catch (e) {
     console.error('actImportFile', e);
-    alert('Bestand inlezen mislukt:\n\n' + (e.message || e));
+    await meld('Bestand inlezen mislukt', String(e.message || e));
   } finally {
     state.importBezig = false;
     renderGebView();
@@ -542,7 +545,7 @@ export async function actImportSchrijven(renderGebView) {
   // mag_gebruikers-permissie zou anders halverwege de batch stranden met een
   // half geïmporteerde staat.
   if (state.profiel?.rol !== 'beheerder') {
-    alert('Alleen een beheerder kan een import wegschrijven (Firestore-rechten).');
+    await meld('Geen rechten', 'Alleen een beheerder kan een import wegschrijven (Firestore-rechten).');
     return;
   }
   // Tel wijzigingen binnen de 30-dagengrens vóór bevestiging
@@ -584,14 +587,16 @@ export async function actImportSchrijven(renderGebView) {
     ? `\n\n⛔ ${p.regelBlokkadesTotaal} BLOKKEREND regelconflict${p.regelBlokkadesTotaal === 1 ? '' : 'en'} in dit bestand (zie de rode lijst in de preview). Importeren negeert deze regels.`
     : '';
 
-  const ok = confirm(
+  const ok = await bevestig(
+    'Import bevestigen',
     `OVERSCHRIJVEN — ${jaarDeel} worden in Firestore vervangen door wat in '${p.bestandnaam}' staat.\n\n` +
     `Je vervangt:\n${jaarRegels}\n\n` +
     `${p.dagen.length} dagen, ${p.celOpmsAantal} cel-opmerkingen, ${p.dagOpmsAantal} dag-opmerkingen.\n\n` +
     `Wens-statussen worden automatisch bijgewerkt.` +
     nabijWaarschuwing +
     blokkadeWaarschuwing +
-    `\n\nBestaande data in Firestore wordt vervangen. Doorgaan?`
+    `\n\nBestaande data in Firestore wordt vervangen. Doorgaan?`,
+    'Importeer', 'Annuleren'
   );
   if (!ok) return;
 
@@ -606,15 +611,17 @@ export async function actImportSchrijven(renderGebView) {
         const backupResultaat = await maakClientBackup('voor-import');
         if (backupResultaat === null) {
           // Gebruiker heeft wachtwoord-prompt geannuleerd — geen backup gemaakt
-          const doorgaan = confirm(
+          const doorgaan = await bevestig(
+            'Geen backup gemaakt',
             'De backup is niet gemaakt omdat het wachtwoord werd geannuleerd.\n\n' +
             'Zonder backup kun je de import niet terugdraaien als er iets misgaat.\n\n' +
-            'Wil je toch doorgaan zonder backup?'
+            'Wil je toch doorgaan zonder backup?',
+            'Doorgaan zonder backup', 'Stoppen'
           );
           if (!doorgaan) {
             // v3.32.7: eerder keerde de import hier zonder één woord terug —
             // niet te onderscheiden van een import die wél had gewerkt.
-            alert('Import afgebroken — er is niets gewijzigd.');
+            await meld('Import afgebroken', 'Er is niets gewijzigd.');
             state.importBezig = false;
             renderGebView();
             return;
@@ -692,12 +699,12 @@ export async function actImportSchrijven(renderGebView) {
     if (wijzigingenGeschreven > 0) berichtDelen.push(`${wijzigingenGeschreven} cel${wijzigingenGeschreven === 1 ? '' : 'len'} gemarkeerd als ongelezen voor betrokken radiologen.`);
     if (verwerkt > 0)  berichtDelen.push(`${verwerkt} wens${verwerkt === 1 ? '' : 'en'} automatisch verwerkt.`);
     if (heropend > 0)  berichtDelen.push(`${heropend} wens${heropend === 1 ? '' : 'en'} teruggezet naar 'open' (indeling klopt niet meer).`);
-    alert('Klaar. ' + berichtDelen.join('\n'));
+    await meld('Import klaar', berichtDelen.join('\n'));
 
     state.importPreview = null;
   } catch (e) {
     console.error('actImportSchrijven', e);
-    alert('Schrijven mislukt:\n\n' + (e.message || e));
+    await meld('Schrijven mislukt', String(e.message || e));
   } finally {
     state.importBezig = false;
     renderGebView();

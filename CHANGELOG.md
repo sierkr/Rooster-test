@@ -1,3 +1,33 @@
+## v3.32.8 — De import hangt niet meer aan browser-popups
+
+De import gebruikte de ingebouwde popups van de browser (`confirm`, `alert`,
+`prompt`) voor de bevestiging, de backup-vraag en de eindmelding. Dat is niet
+betrouwbaar:
+
+- sommige browsers en ingebouwde browservensters onderdrukken die popups
+  helemaal;
+- Chrome en Firefox bieden de gebruiker zélf een vinkje aan — "voorkom dat
+  deze pagina extra dialoogvensters maakt" — zodra er meerdere achter elkaar
+  komen. Staat dat aan, dan geeft `confirm()` voortaan zonder melding "nee"
+  terug en `prompt()` niets.
+
+Het gevolg was een import die geruisloos niets deed: je klikte op Importeer
+en er gebeurde niets, hoe vaak je het ook probeerde. Precies het beeld dat
+zich in de praktijk voordeed.
+
+- **Nieuw bestand `app/dialoog.js`** met drie vensters (mededeling, ja/nee,
+  tekstinvoer) die gewone pagina-elementen zijn. Geen enkele browser kan die
+  onderdrukken. Ze volgen de stijl van de app, inclusief donkere modus,
+  reageren op Enter en Escape, en sluiten bij een klik ernaast.
+- **De hele import loopt er nu doorheen**: bevestiging, "geen rechten",
+  "import afgebroken", de eindmelding en de foutmeldingen.
+- **De backup ook** — die vroeg het wachtwoord met `prompt()`. Werd die
+  onderdrukt, dan zag de app dat als "gebruiker annuleerde", vroeg met een
+  tweede (ook onderdrukte) popup of je zonder backup wilde doorgaan, kreeg
+  "nee" terug en stopte. Twee stille stappen achter elkaar.
+- **Het terugzetten van een backup** gebruikt dezelfde vensters, inclusief de
+  keuze tussen volledig terugzetten en aanvullen.
+
 ## v3.32.7 — Beheer-tab, en de import zwijgt niet meer
 
 ### Beheer-tab bleef soms blanco
