@@ -493,6 +493,7 @@
   <button class="btn btn-primary" style="width: 100%; margin-top: 1rem;" onclick="window.gvOpnieuw()">Opnieuw proberen</button>
   <p class="muted" id="gvStap" style="text-align: center; margin-top: 1.5rem;"></p>
   <p class="muted" id="gvOpslag" style="text-align: center; margin-top: 0.5rem;"></p>
+  <p class="muted" id="gvSpoor" style="text-align: center; margin-top: 0.5rem; word-break: break-word;"></p>
   <p class="muted" id="gvReden" style="text-align: center; margin-top: 0.5rem; word-break: break-word;"></p>
   <p class="muted" style="text-align: center; margin-top: 0.5rem;">v<span class="versieLabel2"></span></p>
 </div>
@@ -628,27 +629,366 @@
   // staat er straks "geen antwoord" terwijl de echte reden bekend was.
   window.__meldReden = onthoud;
 
+  // v3.33.15: spoor van wat Firebase zelf doet bij het opstarten. De proef uit
+  // v3.33.14 bewees dat de opslag op de iPhone werkt (openen, tellen,
+  // schrijven: allemaal gelukt) terwijl de aanmeldcontrole tóch zwijgt. Dan
+  // moet je zien waar Firebase zelf op wacht, niet wat een losse proef doet.
+  // Dit blok kijkt alleen mee: elke handeling gaat ongewijzigd door, er wordt
+  // alleen een luisteraar bij gehangen. Het staat vóór main.js, anders is het
+  // opstarten van Firebase al voorbij voor er iets gevolgd wordt.
+  // ⚠ Er wordt geen inhoud vastgelegd — geen sleutels, geen tokens, van een
+  // netwerkadres alleen de servernaam.
+  var T0 = Date.now();
+  window.__inProef = false;   // handelingen van de eigen proef tellen niet mee
+  window.__spoor = {
+    start: navigator.onLine ? 'online' : 'offline',
+    wissels: [], sw: 'nog bezig', swStuurt: '?', items: []
+  };
+  window.addEventListener('online',  function () { window.__spoor.wissels.push('online @' + ((Date.now() - T0) / 1000).toFixed(1) + 's'); });
+  window.addEventListener('offline', function () { window.__spoor.wissels.push('offline @' + ((Date.now() - T0) / 1000).toFixed(1) + 's'); });
+  function spoorItem(wat) {
+    var it = { wat: wat, t: Date.now() - T0, start: Date.now(), af: null, ms: 0 };
+    if (window.__spoor.items.length < 25) window.__spoor.items.push(it);
+    return it;
+  }
+  function spoorAf(it, uitkomst) {
+    if (it.af) return;
+    it.af = uitkomst;
+    it.ms = Date.now() - it.start;
+  }
+  window.__spoorItem = spoorItem;
+  window.__spoorAf = spoorAf;
+
+  (function volgOpslag() {
+    try {
+      if (!window.IDBFactory || !window.IDBDatabase) return;
+      var NAAM = 'firebaseLocalStorageDb';
+      function luister(doel, it, gebeurtenissen) {
+        for (var k in gebeurtenissen) {
+          (function (ev, uitkomst) {
+            doel.addEventListener(ev, function () { spoorAf(it, uitkomst); });
+          })(k, gebeurtenissen[k]);
+        }
+      }
+      var origOpen = IDBFactory.prototype.open;
+      IDBFactory.prototype.open = function (naam) {
+        var req = origOpen.apply(this, arguments);
+        if (naam === NAAM && !window.__inProef) {
+          try {
+            luister(req, spoorItem('open inlogopslag'),
+                    { success: 'gelukt', error: 'fout', blocked: 'geblokkeerd' });
+          } catch (e) {}
+        }
+        return req;
+      };
+      var origWis = IDBFactory.prototype.deleteDatabase;
+      IDBFactory.prototype.deleteDatabase = function (naam) {
+        var req = origWis.apply(this, arguments);
+        if (naam === NAAM && !window.__inProef) {
+          try {
+            luister(req, spoorItem('wis inlogopslag'),
+                    { success: 'gelukt', error: 'fout', blocked: 'geblokkeerd' });
+          } catch (e) {}
+        }
+        return req;
+      };
+      var origTx = IDBDatabase.prototype.transaction;
+      IDBDatabase.prototype.transaction = function (tabellen, modus) {
+        var tx = origTx.apply(this, arguments);
+        if (this.name === NAAM && !window.__inProef) {
+          try {
+            luister(tx, spoorItem(modus === 'readwrite' ? 'schrijf' : 'lees'),
+                    { complete: 'gelukt', abort: 'afgebroken', error: 'fout' });
+          } catch (e) {}
+        }
+        return tx;
+      };
+    } catch (e) {}
+  })();
+
+  (function volgServiceWorker() {
+    var s = window.__spoor;
+    if (!navigator.serviceWorker) { s.sw = 'niet ondersteund'; s.swStuurt = 'nee'; return; }
+    s.swStuurt = navigator.serviceWorker.controller ? 'ja' : 'nee';
+    var t = Date.now(), af = false;
+    setTimeout(function () { if (!af) s.sw = 'GEEN ANTWOORD binnen 2 s'; }, 2000);
+    try {
+      navigator.serviceWorker.ready.then(function (reg) {
+        af = true;
+        s.sw = (reg && reg.active ? 'klaar' : 'klaar maar niet actief')
+             + ' (' + (Date.now() - t) + ' ms)';
+      }, function () { af = true; s.sw = 'fout'; });
+    } catch (e) { af = true; s.sw = 'fout'; }
+  })();
+
+  window.__spoorTekst = function () {
+    var s = window.__spoor, nu = Date.now(), delen = [];
+    delen.push('verbinding bij start: ' + s.start + ', nu: '
+      + (navigator.onLine ? 'online' : 'offline')
+      + (s.wissels.length ? ' (' + s.wissels.join(', ') + ')' : ''));
+    delen.push('service worker: ' + s.sw + ', stuurt pagina: ' + s.swStuurt);
+    if (!s.items.length) delen.push('Firebase: niets gedaan met inlogopslag of inlogservers');
+    for (var i = 0; i < s.items.length; i++) {
+      var it = s.items[i];
+      delen.push(it.wat + ' @' + (it.t / 1000).toFixed(1) + 's: '
+        + (it.af ? it.af + ' (' + it.ms + ' ms)'
+                 : 'HANGT al ' + ((nu - it.start) / 1000).toFixed(1) + ' s'));
+    }
+    return delen.join(' · ');
+  };
+
+  // Houdt een regel op het scherm 30 s lang bij. Bewust niet controleren of
+  // de regel al in beeld staat: de eerste keer is hij nog niet toegevoegd.
+  window.__houdBij = function (el, maakTekst) {
+    var tot = Date.now() + 30000;
+    (function zet() {
+      try { el.textContent = maakTekst(); } catch (e) {}
+      if (Date.now() < tot) setTimeout(zet, 500);
+    })();
+  };
+
   // v3.33.10: werkt IndexedDB op dit toestel? Alles wat op de iPhone wél werkt
   // staat in localStorage (de aantekening); alles wat níet werkt — de
   // inlogsessie van Firebase en de roostervoorraad — staat in IndexedDB. Als
   // dat tweede opslagsysteem niet antwoordt, verklaart dat beide storingen in
   // één keer, en heeft sleutelen aan Firebase geen zin. Dit meet het.
+  // v3.33.12: de proef van v3.33.10 opende een nieuwe, lege opslag. Dat die in
+  // 11 ms opengaat (gemeten op de iPhone) zegt niets over de bestaande opslag
+  // van Firebase, en juist die is groot en oud. Deze proef kijkt naar de echte
+  // opslagen: die van de aanmeldcontrole en die van de roostervoorraad.
+  // ⚠ Een opslag die niet bestaat wordt door indexedDB.open aangemaakt. Daarom
+  // wordt 'bestond niet' apart gemeld en de zojuist aangemaakte weer verwijderd
+  // — anders leest 'geopend' als bewijs terwijl er niets geopend is.
+  // v3.33.13: zonder verbinding blijven verzoeken aan de inlogservers van
+  // Google op iOS-Safari eeuwig openstaan in plaats van te mislukken. Firebase
+  // wacht daarop, Firestore wacht op Firebase, en zo bleef het rooster leeg
+  // terwijl de gegevens gewoon op het toestel stonden (gemeten 30 september
+  // 2026: opslag in orde, aanmeldcontrole zwijgt, Firestore doet niets).
+  // Meteen laten mislukken is geen omweg maar het juiste antwoord: zonder
+  // verbinding kán zo'n verzoek toch niet slagen, en Firebase behandelt een
+  // mislukking als een gewone netwerkfout en gaat door met de opgeslagen
+  // sessie.
+  // ⚠ Alleen als het toestel meldt geen verbinding te hebben, en alleen voor
+  // deze twee adressen. Mét verbinding grijpt dit nooit in. Bewust alleen
+  // `fetch` — het verkeer van Firestore zelf loopt over XMLHttpRequest en daar
+  // mag niets aan veranderen.
+  window.__afgebroken = [];
+  (function laatInlogverzoekenFalen() {
+    if (typeof window.fetch !== 'function') return;
+    var ADRESSEN = ['identitytoolkit.googleapis.com', 'securetoken.googleapis.com'];
+    var origFetch = window.fetch.bind(window);
+    window.fetch = function (bron, opties) {
+      var url = (bron && bron.url) ? bron.url : bron;
+      var tekst = String(url || '');
+      // v3.33.15: alleen de servernaam, zonder pad of parameters.
+      var server = (tekst.split('/')[2] || '').split('.')[0];
+      var volg = tekst.indexOf('googleapis.com') !== -1;
+      if (!navigator.onLine) {
+        for (var i = 0; i < ADRESSEN.length; i++) {
+          if (tekst.indexOf(ADRESSEN[i]) !== -1) {
+            if (window.__afgebroken.indexOf(ADRESSEN[i]) === -1) {
+              window.__afgebroken.push(ADRESSEN[i]);
+            }
+            if (volg) window.__spoorAf(window.__spoorItem('netwerk ' + server), 'afgebroken');
+            return Promise.reject(new TypeError('Geen verbinding'));
+          }
+        }
+      }
+      // v3.33.16: tijdslimiet op de twee verzoeken die Firebase bij het
+      // opstarten doet. Gemeten op 30 september 2026 (spoor uit v3.33.15): de
+      // iPhone meldt in vliegtuigstand "online", zodat de maatregel hierboven
+      // niet ingrijpt, en de accountcontrole (accounts:lookup) bleef hangen —
+      // "HANGT al 14.5 s". Firebase wacht daarop, het rooster op Firebase.
+      // Na 5 s telt zo'n verzoek als netwerkfout; Firebase gaat dan door met
+      // de sessie op het toestel en probeert het later opnieuw.
+      // ⚠ Alleen accounts:lookup en het vernieuwen van het inlogbewijs.
+      // Inloggen en wachtwoord wijzigen krijgen bewust géén limiet: die moeten
+      // op een traag netwerk gewoon kunnen slagen.
+      var limiet = (tekst.indexOf('identitytoolkit.googleapis.com') !== -1
+                    && tekst.indexOf('accounts:lookup') !== -1)
+                || tekst.indexOf('securetoken.googleapis.com') !== -1;
+      var ctrl = null;
+      if (limiet && typeof AbortController === 'function'
+          && typeof bron === 'string' && !(opties && opties.signal)) {
+        ctrl = new AbortController();
+        var kopie = {};
+        for (var k in (opties || {})) kopie[k] = opties[k];
+        kopie.signal = ctrl.signal;
+        opties = kopie;
+      }
+      var p = origFetch(bron, opties);
+      var it = null;
+      if (volg) {
+        try {
+          it = window.__spoorItem('netwerk ' + server);
+          p.then(function (r) { window.__spoorAf(it, 'antwoord ' + r.status); },
+                 function ()  { window.__spoorAf(it, 'mislukt'); });
+        } catch (e) {}
+      }
+      if (!limiet) return p;
+      var klok;
+      var grens = new Promise(function (_, weiger) {
+        klok = setTimeout(function () {
+          if (it) window.__spoorAf(it, 'tijdslimiet na 5 s');
+          weiger(new TypeError('Geen antwoord binnen 5 s'));
+          if (ctrl) { try { ctrl.abort(); } catch (e) {} }
+        }, 5000);
+      });
+      p.then(function () { clearTimeout(klok); }, function () { clearTimeout(klok); });
+      return Promise.race([p, grens]);
+    };
+  })();
+
   window.__idbProef = 'nog bezig';
+  window.__idbProefKlaar = false;
   (function proefOpslag() {
-    if (!window.indexedDB) { window.__idbProef = 'niet beschikbaar'; return; }
-    var t0 = Date.now(), klaar = false;
-    function af(uitkomst) {
-      if (klaar) return;
-      klaar = true;
-      window.__idbProef = uitkomst + ' (' + (Date.now() - t0) + ' ms)';
+    if (!window.indexedDB) { window.__idbProef = 'niet beschikbaar'; window.__idbProefKlaar = true; return; }
+    var delen = [];
+    function zet(tekst) { delen.push(tekst); window.__idbProef = delen.join(' · '); }
+
+    // v3.33.14: openen en een bewerking zijn twee verschillende dingen. Op
+    // WebKit kan het openen lukken terwijl een lees- of schrijfbewerking blijft
+    // hangen. Daarom telt deze proef na het openen ook hoeveel er in de opslag
+    // staat — alleen tellen, niets lezen van de inhoud, niets wijzigen.
+    // ⚠ Wat dit NIET bewijst: dat Firebase zelf een bewerking kan doen terwijl
+    // het de opslag tegelijk open heeft; alleen dat een losse bewerking lukt.
+    function telMetLimiet(db, daarna) {
+      var t0 = Date.now(), af = false;
+      function klaar(tekst) { if (af) return; af = true; daarna(tekst); }
+      setTimeout(function () { klaar('tellen GEEN ANTWOORD binnen 2 s'); }, 2000);
+      try {
+        var namen = db.objectStoreNames;
+        if (!namen || !namen.length) { klaar('geen tabellen'); return; }
+        window.__inProef = true;
+        var tx;
+        try { tx = db.transaction(namen[0], 'readonly'); } finally { window.__inProef = false; }
+        var v = tx.objectStore(namen[0]).count();
+        v.onsuccess = function () {
+          klaar('geteld: ' + v.result + ' (' + (Date.now() - t0) + ' ms)');
+        };
+        v.onerror = function () { klaar('tellen geweigerd'); };
+        tx.onabort = function () { klaar('tellen afgebroken'); };
+      } catch (e) { klaar('tellen fout'); }
     }
-    setTimeout(function () { af('GEEN ANTWOORD binnen 2 s'); }, 2000);
-    try {
-      var v = indexedDB.open('rooster_opslagproef');
-      v.onsuccess = function () { af('geopend'); try { v.result.close(); } catch (e) {} };
-      v.onerror   = function () { af('geweigerd'); };
-      v.onblocked = function () { af('geblokkeerd'); };
-    } catch (e) { af('fout: ' + (e && e.message ? e.message : e)); }
+
+    function openMetLimiet(naam, etiket, daarna) {
+      var t0 = Date.now(), af = false, bestondNiet = false;
+      function meld(tekst) {
+        if (af) return;
+        af = true;
+        zet(etiket + ': ' + tekst);
+        if (daarna) daarna();
+      }
+      setTimeout(function () { meld('GEEN ANTWOORD binnen 2 s'); }, 2000);
+      try {
+        window.__inProef = true;
+        var v;
+        try { v = indexedDB.open(naam); } finally { window.__inProef = false; }
+        v.onupgradeneeded = function () { bestondNiet = true; };
+        v.onsuccess = function () {
+          var ms = Date.now() - t0;
+          var db = v.result;
+          if (bestondNiet) {
+            try { db.close(); } catch (e) {}
+            window.__inProef = true;
+            try { indexedDB.deleteDatabase(naam); } catch (e) {}
+            window.__inProef = false;
+            meld('bestond niet');
+            return;
+          }
+          if (af) { try { db.close(); } catch (e) {} return; }
+          telMetLimiet(db, function (uitkomst) {
+            try { db.close(); } catch (e) {}
+            meld('geopend (' + ms + ' ms), ' + uitkomst);
+          });
+        };
+        v.onerror   = function () { meld('geweigerd'); };
+        v.onblocked = function () { meld('geblokkeerd'); };
+      } catch (e) { meld('fout'); }
+    }
+
+    // v3.33.14: een echte schrijf-, lees- en opruimbewerking, in een eigen
+    // testopslag die daarna weer verwijderd wordt. Firebase doet bij het
+    // opstarten precies zoiets om te kijken of de opslag bruikbaar is.
+    // ⚠ Wat dit NIET bewijst: dat het ook in firebaseLocalStorageDb zelf lukt;
+    // daar wordt bewust niets gewijzigd.
+    function schrijfProef(daarna) {
+      var naam = 'rooster-opslagproef', t0 = Date.now(), af = false;
+      function meld(tekst) {
+        if (af) return;
+        af = true;
+        zet('schrijfproef: ' + tekst);
+        if (daarna) daarna();
+      }
+      setTimeout(function () { meld('GEEN ANTWOORD binnen 2 s'); }, 2000);
+      try {
+        var v = indexedDB.open(naam, 1);
+        v.onupgradeneeded = function () {
+          try { v.result.createObjectStore('proef'); } catch (e) {}
+        };
+        v.onsuccess = function () {
+          var db = v.result;
+          function sluit() {
+            try { db.close(); } catch (e) {}
+            try { indexedDB.deleteDatabase(naam); } catch (e) {}
+          }
+          try {
+            var tx = db.transaction('proef', 'readwrite');
+            var st = tx.objectStore('proef');
+            st.put('1', 'sleutel');
+            var lees = st.get('sleutel');
+            lees.onsuccess = function () {
+              if (lees.result !== '1') { sluit(); meld('teruggelezen waarde klopt niet'); return; }
+              st.delete('sleutel');
+            };
+            tx.oncomplete = function () { sluit(); meld('gelukt (' + (Date.now() - t0) + ' ms)'); };
+            tx.onerror = function () { sluit(); meld('geweigerd'); };
+            tx.onabort = function () { sluit(); meld('afgebroken'); };
+          } catch (e) { sluit(); meld('fout'); }
+        };
+        v.onerror   = function () { meld('openen geweigerd'); };
+        v.onblocked = function () { meld('openen geblokkeerd'); };
+      } catch (e) { meld('fout'); }
+    }
+
+    function onderzoek(namen) {
+      var rooster = null;
+      for (var i = 0; i < namen.length; i++) {
+        if (String(namen[i]).indexOf('firestore') !== -1) { rooster = namen[i]; break; }
+      }
+      if (!rooster && window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId) {
+        rooster = 'firestore/[DEFAULT]/' + window.FIREBASE_CONFIG.projectId + '/main';
+      }
+      openMetLimiet('firebaseLocalStorageDb', 'auth-opslag', function () {
+        function klaar() { window.__idbProefKlaar = true; }
+        function verder() { schrijfProef(klaar); }
+        if (rooster) openMetLimiet(rooster, 'rooster-opslag', verder);
+        else { zet('rooster-opslag: naam onbekend'); verder(); }
+      });
+    }
+
+    if (typeof indexedDB.databases === 'function') {
+      var af = false;
+      function lijstKlaar(namen, hoe) {
+        if (af) return;
+        af = true;
+        zet('lijst: ' + hoe);
+        onderzoek(namen);
+      }
+      setTimeout(function () { lijstKlaar([], 'GEEN ANTWOORD binnen 2 s'); }, 2000);
+      try {
+        indexedDB.databases().then(function (lijst) {
+          var namen = [];
+          for (var i = 0; i < (lijst || []).length; i++) {
+            if (lijst[i] && lijst[i].name) namen.push(lijst[i].name);
+          }
+          lijstKlaar(namen, namen.length + ' opslagen');
+        }, function () { lijstKlaar([], 'fout'); });
+      } catch (e) { lijstKlaar([], 'fout'); }
+    } else {
+      zet('lijst: niet ondersteund');
+      onderzoek([]);
+    }
   })();
 
   window.__schermGetoond = false;
@@ -665,8 +1005,18 @@
     });
     var stap = document.getElementById('gvStap');
     if (stap) stap.textContent = 'laatste stap: ' + window.__laatsteStap;
+    // v3.33.14: de proef kan nog lopen als dit scherm verschijnt; houd de
+    // regel bij tot hij klaar is, anders blijft er een halve uitkomst staan.
     var opslag = document.getElementById('gvOpslag');
-    if (opslag) opslag.textContent = 'opslag op dit toestel: ' + window.__idbProef;
+    if (opslag) {
+      var zetOpslag = function () {
+        opslag.textContent = 'opslag op dit toestel: ' + window.__idbProef;
+        if (!window.__idbProefKlaar) setTimeout(zetOpslag, 500);
+      };
+      zetOpslag();
+    }
+    var spoor = document.getElementById('gvSpoor');
+    if (spoor) window.__houdBij(spoor, function () { return 'spoor: ' + window.__spoorTekst(); });
     var reden = document.getElementById('gvReden');
     if (reden) reden.textContent = window.__redenTekst();
     // Het versienummer wordt normaal door main.js ingevuld. Juist als die niet

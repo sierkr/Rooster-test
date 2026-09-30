@@ -676,8 +676,53 @@ function toonGeenGegevensMelding() {
   blok.id = 'geen-gegevens';
   blok.className = 'empty-state';
   blok.style.cssText = 'padding:24px 16px;text-align:center;';
-  blok.textContent = 'Geen verbinding, en de opgeslagen gegevens op dit toestel '
+
+  const tekst = document.createElement('div');
+  tekst.textContent = 'Geen verbinding, en de opgeslagen gegevens op dit toestel '
     + 'zijn niet bereikbaar. Het rooster kan daardoor niet getoond worden.';
+  blok.appendChild(tekst);
+
+  // v3.33.11: de uitkomst van de opslagproef stond alleen op het scherm "Geen
+  // verbinding" — en juist als de app wél opstart komt niemand daar. Hij hoort
+  // hier, want dit is het scherm dat je dan te zien krijgt.
+  const opslag = document.createElement('div');
+  opslag.className = 'muted';
+  opslag.style.cssText = 'margin-top:12px;';
+  // v3.33.14: de proef heeft nu meer stappen en kan nog lopen als deze melding
+  // verschijnt. Bijwerken tot hij klaar is, anders blijft er een halve uitkomst.
+  const zetOpslag = () => {
+    opslag.textContent = 'opslag op dit toestel: '
+      + (typeof window.__idbProef === 'undefined' ? 'onbekend' : window.__idbProef);
+    // Niet controleren of de regel al in beeld staat: bij de eerste keer is
+    // hij nog niet toegevoegd, en dan zou het bijwerken meteen stoppen.
+    if (window.__idbProefKlaar === false) {
+      setTimeout(zetOpslag, 500);
+    }
+  };
+  zetOpslag();
+  blok.appendChild(opslag);
+
+  // v3.33.15: wat Firebase zelf deed bij het opstarten, bijgewerkt zolang de
+  // melding staat. Dit is de meting die de volgende stap bepaalt.
+  if (typeof window.__spoorTekst === 'function') {
+    const spoor = document.createElement('div');
+    spoor.className = 'muted';
+    spoor.style.cssText = 'margin-top:6px;word-break:break-word;';
+    blok.appendChild(spoor);
+    window.__houdBij(spoor, () => 'spoor: ' + window.__spoorTekst());
+  }
+
+  // v3.33.13: welke inlogverzoeken zijn afgebroken? Blijft het rooster ondanks
+  // die maatregel leeg, dan zegt deze regel of de maatregel überhaupt heeft
+  // ingegrepen — zonder dat is de volgende stap weer gissen.
+  if (window.__afgebroken && window.__afgebroken.length) {
+    const afg = document.createElement('div');
+    afg.className = 'muted';
+    afg.style.cssText = 'margin-top:6px;';
+    afg.textContent = 'afgebroken inlogverzoeken: ' + window.__afgebroken.join(', ');
+    blok.appendChild(afg);
+  }
+
   app.insertBefore(blok, app.firstChild);
 }
 

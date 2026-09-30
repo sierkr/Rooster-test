@@ -1,3 +1,169 @@
+## v3.33.16 — Een opstartcontrole mag niet eeuwig wachten
+
+**De oorzaak, gemeten** met het spoor uit v3.33.15 op Sierks iPhone in
+vliegtuigstand (30 september 2026):
+
+- `verbinding bij start: online, nu: online` — **iOS meldt "online" terwijl er
+  geen verbinding is.** Daarom greep de maatregel uit v3.33.13 (alleen bij
+  "offline") nooit in.
+- `netwerk identitytoolkit @0.1s: HANGT al 14.5 s` — de accountcontrole die
+  Firebase bij elke start doet (`accounts:lookup`) mislukt niet maar blijft
+  openstaan. Firebase wacht, Firestore wacht op Firebase: geen rooster.
+- Alle opslagopdrachten van Firebase lukten in 1–5 ms. De opslag was het niet.
+
+**Reparatie:** `accounts:lookup` en het vernieuwen van het inlogbewijs
+(`securetoken`) krijgen een tijdslimiet van 5 s, ongeacht wat het toestel over
+verbinding zegt. Daarna telt het als netwerkfout (`network-request-failed`);
+Firebase houdt dan de opgeslagen sessie aan en probeert het later opnieuw.
+
+- ⚠ Inloggen en wachtwoord wijzigen krijgen **geen** limiet.
+- ⚠ De maatregel uit v3.33.13 blijft staan.
+- Het spoor meldt `tijdslimiet na 5 s` als de limiet ingreep.
+- Niet gemeten: of dit het rooster op de iPhone binnen ~5 s laat verschijnen.
+  Dat is Sierks meting.
+
+## v3.33.15 — Kijken wat Firebase zelf doet
+
+Meetversie, geen reparatie. De proef uit v3.33.14 gaf op Sierks iPhone in
+vliegtuigstand: `auth-opslag: geopend (3 ms), geteld: 1 (6 ms) · rooster-opslag:
+geopend (4 ms), geteld: 0 (1 ms) · schrijfproef: gelukt (8 ms)`. **De opslag
+werkt dus, ook bij een echte bewerking.** Het vermoeden uit de handover (§6) is
+daarmee weerlegd; de bijbehorende reparatie (`browserLocalPersistence`) is niet
+gebouwd. ⚠ "geteld: 0" bij de roosteropslag telt alleen de eerste tabel
+(alfabetisch, een hulptabel) en zegt niets over het rooster zelf.
+
+Nieuw: een **spoor** van wat Firebase zelf doet bij het opstarten, onder de
+melding en op het scherm "Geen verbinding", 30 seconden lang bijgewerkt:
+
+- elke open-, lees-, schrijf- en wisopdracht van Firebase op
+  `firebaseLocalStorageDb`, met of die afkomt of **HANGT**;
+- elk `fetch`-verzoek naar `*.googleapis.com` (alleen de servernaam) en wat er
+  mee gebeurde;
+- wat het toestel meldt over verbinding, bij de start en nu, plus wissels;
+- of de service worker binnen 2 s klaarstaat en of hij de pagina aanstuurt.
+
+⚠ Alleen meekijken: elke handeling gaat ongewijzigd door, er hangt alleen een
+luisteraar aan. Handelingen van de eigen proef worden niet meegeteld.
+⚠ Ook gerepareerd: de regel "opslag op dit toestel" in de app werd in 3.33.14
+niet bijgewerkt (de controle "staat hij in beeld" viel vóór het toevoegen).
+
+## v3.33.14 — Openen is nog geen bewerking
+
+Meetversie, geen reparatie. v3.33.13 brak geen enkel inlogverzoek af: het
+vastlopen zit vóór het netwerk, in de opstartfase van Firebase Auth. Wat Auth
+daar doet is controleren of de opslag bruikbaar is — iets wegschrijven,
+teruglezen en opruimen. De opslagproef deed tot nu toe alleen openen en
+sluiten, en op WebKit kan openen lukken terwijl een bewerking blijft hangen.
+
+- **Na het openen telt de proef hoeveel er in de opslag staat**, voor zowel de
+  inlogopslag als de roosteropslag. Alleen tellen: niets van de inhoud lezen,
+  niets wijzigen.
+- **Nieuwe schrijfproef** in een eigen testopslag (`rooster-opslagproef`):
+  wegschrijven, teruglezen, opruimen, daarna wordt de testopslag verwijderd.
+- Elke stap heeft een limiet van 2 seconden en meldt "GEEN ANTWOORD" als hij
+  hangt.
+- De regel "opslag op dit toestel" wordt bijgewerkt tot de proef klaar is, zowel
+  op het scherm "Geen verbinding" als in de melding in de app.
+- ⚠ **Wat dit niet bewijst:** dat een bewerking in `firebaseLocalStorageDb` lukt
+  terwijl Firebase die tegelijk open heeft, en of schrijven in díe opslag lukt
+  (daar wordt bewust niets gewijzigd).
+
+**Uitkomst bepaalt de volgende stap.** Hangt een bewerking: Firebase de sessie
+in `browserLocalPersistence` laten bewaren, alleen op toestellen waar de proef
+hangt (kost daar één keer opnieuw inloggen). Komt alles door: verder meten.
+
+## v3.33.13 — Een inlogverzoek dat niet kan slagen, moet mislukken
+
+Na v3.33.12 lag de laatste puzzel op tafel. Gemeten op de iPhone:
+`auth-opslag: geopend (3 ms) · rooster-opslag: geopend (9 ms)` — de opslag is
+dus kerngezond. Gemeten via de stempels: de aanmeldcontrole geeft nooit
+antwoord. Gemeten in de emulator-opstelling: zolang die zwijgt doet Firestore
+helemaal niets, ook zijn eigen voorraad niet lezen.
+
+Wat overblijft: bij het opstarten vraagt Firebase een vers inlogbewijs aan de
+servers van Google, want het oude is na een uur verlopen. Zonder verbinding kan
+dat niet. Op Chromium en op de Safari-motor van Playwright mislukt dat verzoek
+meteen en gaat Firebase door met de opgeslagen sessie. **Op iOS-Safari mislukt
+het niet — het blijft eeuwig openstaan.** Daar wacht vervolgens alles op.
+
+- **Meldt het toestel geen verbinding, dan mislukken verzoeken aan
+  `identitytoolkit.googleapis.com` en `securetoken.googleapis.com`
+  onmiddellijk.** Zonder verbinding kan zo'n verzoek toch niet slagen; meteen
+  falen is het juiste antwoord, geen omweg. Firebase behandelt het als een
+  gewone netwerkfout, gaat door met de opgeslagen sessie, en Firestore krijgt
+  eindelijk groen licht om de voorraad te lezen.
+- ⚠ **Alleen bij geen verbinding en alleen voor die twee adressen.** Mét
+  verbinding grijpt dit nooit in.
+- ⚠ **Bewust alleen `fetch`.** Het verkeer van Firestore zelf loopt over
+  `XMLHttpRequest`; daar wordt niets aan veranderd.
+- Het zit in het vangnet in `index.html`, vóór Firebase geladen wordt — later
+  is te laat.
+- **De maatregel meet zichzelf:** afgebroken verzoeken komen in de melding te
+  staan als het rooster tóch leeg blijft.
+
+Nagemeten in de Safari-motor (89 tests groen):
+
+| Proef | Uitkomst |
+|---|---|
+| Online, verzoek aan de inlogserver | gaat gewoon het net op; niets afgebroken |
+| Offline, met een hangend netwerk eronder | inlogserver direct geweigerd; een ander adres blijft onaangeroerd hangen |
+| Volledig verloop | geen paginafouten; Firebase houdt het laatste woord |
+
+⚠ **Wat níet is aangetoond:** dat het rooster hierna op een iPhone verschijnt.
+In de opstelling is er geen opgeslagen Firebase-sessie, dus wordt er nooit een
+vers inlogbewijs aangevraagd en slaat de maatregel nooit aan. Het mechanisme is
+bewezen, het effect op het toestel niet.
+
+---
+
+## v3.33.12 — De juiste opslag meten
+
+De proef uit v3.33.10 opende een **nieuwe, lege** opslag. Op de iPhone meldde
+die "geopend (11 ms)" — en daar heb ik uit afgeleid dat de opslag in orde was.
+Dat was te snel: het zegt niets over de bestáánde opslag van Firebase, en juist
+die is groot en oud. De proef was zwakker dan hij oogde.
+
+- **De proef kijkt nu naar de echte opslagen**: eerst welke er op het toestel
+  staan, dan die van de aanmeldcontrole (`firebaseLocalStorageDb`), dan die van
+  de roostervoorraad. Elk met een limiet van 2 seconden.
+- ⚠ **`indexedDB.open` maakt een opslag aan die nog niet bestaat.** Daarom wordt
+  "bestond niet" apart gemeld en wordt de zojuist aangemaakte weer verwijderd —
+  anders leest "geopend" als bewijs terwijl er niets geopend is.
+- De naam van de roostervoorraad komt uit de lijst; is die er niet, dan wordt
+  hij afgeleid uit het project-id.
+
+Nagemeten in de Safari-motor (89 tests groen):
+
+| Situatie | Wat er op het scherm komt |
+|---|---|
+| Verse browser | *lijst: 0 opslagen · auth-opslag: bestond niet · rooster-opslag: bestond niet* |
+| Auth-opslag hangt | *auth-opslag: GEEN ANTWOORD binnen 2 s · rooster-opslag: bestond niet* |
+| Na inloggen, opslagen bestaan echt | *lijst: 3 opslagen · auth-opslag: geopend (4 ms) · rooster-opslag: geopend (0 ms)* |
+
+Deze versie repareert niets; ze beslist welke reparatie de juiste is.
+
+---
+
+## v3.33.11 — De opslagproef op de plek waar je hem ziet
+
+De uitkomst van de opslagproef uit v3.33.10 stond alleen op het scherm "Geen
+verbinding" — en juist sinds v3.33.9 start de app wél op, zodat niemand daar nog
+komt. Het getal stond dus op een scherm dat de gebruiker niet meer krijgt.
+
+- **De uitkomst staat nu ook onder de melding** die verschijnt als het rooster
+  leeg blijft. Verder verandert er niets.
+
+Nagemeten in de Safari-motor (89 tests groen) — de twee mogelijkheden geven een
+verschillend antwoord, en dát is waar het om gaat:
+
+| Situatie | Wat er op het scherm komt |
+|---|---|
+| Opslag geeft geen antwoord | *opslag op dit toestel: GEEN ANTWOORD binnen 2 s (2001 ms)* |
+| Opslag werkt, aanmeldcontrole zwijgt | *opslag op dit toestel: geopend (79 ms)* |
+| Opslag werkt en gegevens komen binnen | geen melding |
+
+---
+
 ## v3.33.10 — Meten welke opslag het laat afweten
 
 Op de iPhone startte de app offline wél op (v3.33.9) maar bleef het rooster
