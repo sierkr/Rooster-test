@@ -1,3 +1,48 @@
+## v3.33.6 — De app hangt niet langer aan een inlogvenster dat niet gebruikt wordt
+
+Het vangnet uit v3.33.5 wees de oorzaak aan op het toestel zelf:
+
+    Kon niet laden: https://apis.google.com/js/api.js?onload=__iframefcb153860
+
+`getAuth()` — de standaardmanier om Firebase-inloggen op te starten — zet er
+ongevraagd `popupRedirectResolver` bij, het onderdeel voor inloggen via een
+Google-venster. Uit de software zelf gelezen:
+`initializeAuth(e,{popupRedirectResolver:z,persistence:[...]})`. Dat onderdeel
+is het enige in `firebase-auth.js` dat `apis.google.com/js/api.js` ophaalt: bij
+het opstarten kijkt het of de gebruiker net via zo'n venster binnenkwam. Dat
+gebeurt alléén als er al iemand ingelogd is — vandaar dat het bij het testen
+zonder account nooit zichtbaar werd. Zonder internet blijft het opstarten erop
+staan en kwam de app nooit verder.
+
+Drie feiten die dit extra wrang maken:
+
+- deze app gebruikt dat venster nergens (geen `signInWithPopup` of
+  `signInWithRedirect` — inloggen gaat met naam en wachtwoord);
+- het eigen veiligheidsbeleid in `index.html` staat `apis.google.com` niet toe
+  en heeft `frame-src 'none'`, dus het kón nooit werken, ook niet mét internet;
+- het hield daarmee de hele app tegen voor iets wat nergens voor dient.
+
+- **`initializeAuth()` in plaats van `getAuth()`**, zonder
+  `popupRedirectResolver`. De manier van sessies bewaren is bewust dezelfde
+  (`indexedDBLocalPersistence`, `browserLocalPersistence`,
+  `browserSessionPersistence`), zodat ingelogd blijven na afsluiten onveranderd
+  werkt. ⚠ Niet terugzetten naar `getAuth()`.
+
+Nagemeten: 89 tests groen, inloggen krijgt gewoon antwoord van de server
+("E-mail of wachtwoord onjuist"), geen paginafouten, en offline met de motor in
+de voorraad komt het inlogscherm op zonder vals alarm van het vangnet.
+
+⚠ **Wat níet is aangetoond:** dat dit de hangende boel wegneemt. Dat bestand
+wordt alleen opgehaald als er iemand ingelogd is, en bij het bouwen was er geen
+account om mee te meten. Het bewijs moet van een toestel met een echte sessie
+komen.
+
+Niet veranderd: inloggen met naam en wachtwoord, ingelogd blijven, wachtwoord
+wijzigen, databank, toegangsregels, cloud functions, het rooster, import en
+export, en alle schermen en teksten.
+
+---
+
 ## v3.33.5 — Een wit scherm kan niet meer
 
 v3.33.4 haalde de Firebase-motor binnen boord, en op de iPhone stopte het
