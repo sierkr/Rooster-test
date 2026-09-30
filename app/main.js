@@ -24,6 +24,18 @@ import { renderBehView } from './views/overzicht.js';
 import { renderRegView } from './views/regels.js';
 import { renderGebView } from './views/gebruikers.js';
 
+// ==== Stempels onderweg (v3.33.7) ===========================================
+// Het scherm "Geen verbinding" meldde alleen "geen antwoord" en zei daarmee
+// niet wáár de app op stond te wachten. Deze stempels zetten de laatst
+// bereikte stap neer; die komt op dat scherm te staan. Het vangnet in
+// index.html houdt ze bij — dat staat er bewust vóór, zodat "app/main.js nog
+// niet begonnen" ook zichtbaar wordt.
+function stap(naam) {
+  if (typeof window.__stap === 'function') window.__stap(naam);
+}
+// Dit is de eerste regel die draait nadat álle imports gelukt zijn.
+stap('Firebase geladen');
+
 // ==== Sheet helpers op window (voor inline onclick="window.closeSheet()") ====
 
 window.openSheet  = openSheet;
@@ -538,6 +550,7 @@ function startApp() {
   state.huidigeView = 'beh';
   renderTabs();
   luisterNaarData();
+  stap('app gestart');
 }
 
 // ==== Boot ===================================================================
@@ -644,7 +657,9 @@ window.gvOpnieuw = async () => {
 async function opstarten(user) {
   _opstartUser = user;
   try {
+    stap('profiel opvragen');
     const profiel = await laadProfiel(user.uid);
+    stap('profiel binnen');
     state.user = user;
     state.profiel = profiel;
 
@@ -675,10 +690,13 @@ async function opstarten(user) {
   }
 }
 
+stap('aanmeldcontrole gestart');
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    stap('niemand ingelogd');
     toonScherm('login');
     return;
   }
+  stap('gebruiker bekend');
   await opstarten(user);
 });

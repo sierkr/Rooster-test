@@ -1,3 +1,44 @@
+## v3.33.7 — De app vertelt hoe ver hij komt
+
+Deze versie repareert niets. Ze maakt zichtbaar waar het opstarten blijft
+steken, want daar liep het onderzoek op vast.
+
+v3.33.6 haalde `apis.google.com` weg — dat werkte, die foutmelding is van het
+toestel verdwenen. Maar de app start offline nog steeds niet op, en het scherm
+"Geen verbinding" meldde alleen "De app kreeg binnen 15 seconden geen antwoord".
+Er gaat dus niets kapot; er komt ergens nooit een antwoord. Wáár, zei het scherm
+niet.
+
+- **Stempels onderweg.** De app zet bij elke stap een stempel, en de laatst
+  bereikte stap komt op het scherm "Geen verbinding" te staan: *Firebase
+  geladen* → *aanmeldcontrole gestart* → *gebruiker bekend* (of *niemand
+  ingelogd*) → *profiel opvragen* → *profiel binnen* → *app gestart*.
+  De beginwaarde staat in het vangnet in `index.html`, dus vóór `app/main.js`:
+  komt die niet op gang, dan leest het scherm "pagina geladen, app/main.js nog
+  niet begonnen".
+
+Nagemeten (89 tests groen):
+
+- gewone start, niet ingelogd → laatste stap *niemand ingelogd*;
+- motor onbereikbaar → *pagina geladen, app/main.js nog niet begonnen*, met
+  daaronder `Kon niet laden: …/app/main.js`;
+- volledige keten met een echte inlogsessie (Firebase-emulators op de Mint,
+  gemeten in zowel Chromium als de Safari-motor van Playwright) → *app gestart*.
+
+### Wat in deze ronde is wéggestreept
+
+Met die emulator-opstelling zijn vier verklaringen weerlegd in plaats van
+beredeneerd: een vastlopende profielopvraag (Firestore weigert offline binnen
+120 ms), een verlopen inlogbewijs (app start dan nog steeds binnen 2 seconden),
+de Safari-motor als zodanig (WebKit start net zo goed op), en "er gaat iets
+kapot" (er wordt geen enkele fout gemeld). Wat overblijft is het verschil tussen
+die opstelling en een echt toestel: iOS-Safari, de echte servers van Google, en
+de app uit de voorraad van de service worker.
+
+Niet veranderd: alles wat de app doet.
+
+---
+
 ## v3.33.6 — De app hangt niet langer aan een inlogvenster dat niet gebruikt wordt
 
 Het vangnet uit v3.33.5 wees de oorzaak aan op het toestel zelf:
