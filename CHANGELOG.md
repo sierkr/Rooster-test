@@ -1,3 +1,41 @@
+## v3.33.10 — Meten welke opslag het laat afweten
+
+Op de iPhone startte de app offline wél op (v3.33.9) maar bleef het rooster
+leeg. Nagemeten met de aanmeldcontrole tot zwijgen gebracht: **zolang die zwijgt
+doet Firestore helemaal niets.** Niet alleen de luisteraars leveren niets — ook
+een rechtstreekse leesopdracht op de eigen voorraad geeft nooit antwoord, zelfs
+geen foutmelding. Dat verklaart het lege Overzicht: de tabbladen tekent de app
+zelf, de inhoud moet uit Firestore komen.
+
+Wat daarachter zit is nog een vermoeden, en dit is precies wat dat vermoeden
+toetst: alles wat op dat toestel wél werkt staat in **localStorage** (de
+aantekening uit v3.33.8), alles wat níet werkt staat in **IndexedDB** (de
+inlogsessie van Firebase en de roostervoorraad). Klopt dat, dan heeft sleutelen
+aan Firebase geen zin en moet de app zijn eigen kopie gaan bewaren.
+
+- **Een opslagproef bij het opstarten.** De app probeert IndexedDB te openen met
+  een limiet van 2 seconden en zet de uitkomst op het scherm "Geen verbinding",
+  onder de laatst bereikte stap. De proef staat in het vangnet in `index.html`,
+  dus vóór `app/main.js` — hij werkt ook als die niet start.
+- **Een melding als het rooster leeg blijft.** Draait de app op de aantekening
+  en komt er binnen 4 seconden niets uit de voorraad, dan verschijnt bovenaan:
+  *"Geen verbinding, en de opgeslagen gegevens op dit toestel zijn niet
+  bereikbaar."* Die melding verdwijnt zodra er alsnog gegevens binnenkomen. Een
+  scherm dat niets doet moet dat zeggen.
+
+Nagemeten in de Safari-motor (89 tests groen):
+
+| Proef | Uitkomst |
+|---|---|
+| Gewone start | opslagproef: *geopend (66 ms)* |
+| IndexedDB zonder antwoord, mét aantekening | app en balk komen op; na de limiet de melding, stempel *op de aantekening gestart, maar geen gegevens uit de voorraad* |
+| IndexedDB zonder antwoord, onbekend toestel | scherm "Geen verbinding" met *opslag op dit toestel: GEEN ANTWOORD binnen 2 s* |
+
+Deze versie repareert het lege rooster niet. Ze beslist welke van de twee
+reparaties de juiste is.
+
+---
+
 ## v3.33.9 — Eerst het rooster, dan pas de verbinding
 
 v3.33.8 bracht de app voorbij de zwijgende aanmeldcontrole, maar op een iPhone

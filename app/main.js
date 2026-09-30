@@ -441,6 +441,8 @@ function luisterNaarData() {
   let functiesGeladen = false;
 
   state.unsubscribers.push(onSnapshot(collection(db, 'radiologen'), (snap) => {
+    _gegevensBinnen = true;
+    verbergGeenGegevensMelding();
     state.radiologen = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (!state.huidigeRadId) {
       state.huidigeRadId = state.profiel?.radioloog_id && isVasteStoel(state.profiel.radioloog_id)
@@ -660,6 +662,29 @@ let _appGestart = false;
 // dat geen detail. Hij hangt aan de verbinding, niet aan Firebase: ook als
 // Firebase alsnog antwoordt, is er dan nog steeds geen verbinding.
 let _aantekeningBalk = null;
+let _gegevensBinnen = false;
+
+// v3.33.10: draait de app op de aantekening en komt er niets uit de voorraad,
+// dan bleef het scherm leeg zonder uitleg. Gemeten: zolang de aanmeldcontrole
+// zwijgt doet Firestore helemaal niets — ook zijn eigen voorraad niet lezen, en
+// zelfs zonder foutmelding. Een scherm dat niets doet moet dat zeggen.
+function toonGeenGegevensMelding() {
+  if (document.getElementById('geen-gegevens')) return;
+  const app = document.getElementById('app');
+  if (!app) return;
+  const blok = document.createElement('div');
+  blok.id = 'geen-gegevens';
+  blok.className = 'empty-state';
+  blok.style.cssText = 'padding:24px 16px;text-align:center;';
+  blok.textContent = 'Geen verbinding, en de opgeslagen gegevens op dit toestel '
+    + 'zijn niet bereikbaar. Het rooster kan daardoor niet getoond worden.';
+  app.insertBefore(blok, app.firstChild);
+}
+
+function verbergGeenGegevensMelding() {
+  const blok = document.getElementById('geen-gegevens');
+  if (blok) blok.remove();
+}
 
 function toonAantekeningBalk() {
   if (_aantekeningBalk) return;
@@ -812,6 +837,11 @@ function startOpAantekening(hoe) {
   try {
     startApp();
     toonAantekeningBalk();
+    setTimeout(() => {
+      if (_gegevensBinnen) return;
+      stap('op de aantekening gestart, maar geen gegevens uit de voorraad');
+      toonGeenGegevensMelding();
+    }, 4000);
     return true;
   } catch (e) {
     meldReden(e);
