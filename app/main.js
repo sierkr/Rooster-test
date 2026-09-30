@@ -655,6 +655,32 @@ let _appGestart = false;
 // scherm over zonder enige uitleg (iPhone, offline, 29 september 2026). Nu
 // blijft het laadsymbool staan tot hier een scherm gekozen wordt, en weet het
 // vangnet in index.html dat het niet meer hoeft in te grijpen.
+// v3.33.9: een smalle balk zolang de app op de aantekening draait. Zonder die
+// balk is niet te zien of je naar actuele gegevens kijkt, en bij een rooster is
+// dat geen detail. Hij hangt aan de verbinding, niet aan Firebase: ook als
+// Firebase alsnog antwoordt, is er dan nog steeds geen verbinding.
+let _aantekeningBalk = null;
+
+function toonAantekeningBalk() {
+  if (_aantekeningBalk) return;
+  const balk = document.createElement('div');
+  balk.id = 'aantekening-balk';
+  balk.textContent = 'Geen verbinding — laatst bekende rooster';
+  balk.style.cssText = 'position:sticky;top:0;z-index:9998;background:#5f5e5a;color:#fff;'
+    + 'font-family:system-ui,sans-serif;font-weight:600;font-size:13px;text-align:center;padding:6px 10px;';
+  document.body.insertBefore(balk, document.body.firstChild);
+  _aantekeningBalk = balk;
+}
+
+function verbergAantekeningBalk() {
+  if (!_aantekeningBalk) return;
+  _aantekeningBalk.remove();
+  _aantekeningBalk = null;
+}
+
+// Komt de verbinding terug, dan mag de balk weg.
+window.addEventListener('online', verbergAantekeningBalk);
+
 function toonScherm(id, weergave) {
   ['login', 'change-password', 'app', 'geen-verbinding'].forEach(s => {
     const el = document.getElementById(s);
@@ -745,6 +771,7 @@ onAuthStateChanged(auth, async (user) => {
     // niemand — ook als de app al op de aantekening was gestart.
     stap('niemand ingelogd');
     vergeetToestelGebruiker();
+    verbergAantekeningBalk();
     toonScherm('login');
     return;
   }
@@ -754,28 +781,27 @@ onAuthStateChanged(auth, async (user) => {
     // opnieuw opstarten, alleen de echte gebruiker erin zetten (die heeft een
     // geldig inlogbewijs, de aantekening niet).
     state.user = user;
+    if (navigator.onLine) verbergAantekeningBalk();
     stap('aanmeldcontrole alsnog beantwoord');
     return;
   }
   await opstarten(user);
 });
 
-// v3.33.8: noodvoorziening. Twee voorwaarden, allebei nodig — zo kan dit op een
-// computer mét verbinding nooit in werking treden, ook niet op een gedeelde pc.
-// Op apparaatsoort selecteren zou onbetrouwbaar zijn: een iPad meldt zich als
-// desktop, en "toon desktopversie" doet hetzelfde op een telefoon.
-setTimeout(() => {
-  if (_aanmeldingBeantwoord || _appGestart) return;
-  if (navigator.onLine) {
-    stap('aanmeldcontrole nog bezig, wel verbinding');
-    return;
-  }
+// ==== Meteen het rooster, dan pas de verbinding (v3.33.9) ===================
+// In v3.33.8 wachtte de app eerst 6 seconden, en deed hij níets als het toestel
+// zei dat het verbinding had terwijl er in werkelijkheid niets doorkwam. Op een
+// iPhone gaf dat één keer een rooster en de keer erna niets. Beide gaten zijn
+// hier dicht: de gegevens komen in ongeveer 20 milliseconden uit de voorraad,
+// dus er valt niets te wachten.
+function startOpAantekening(hoe) {
+  if (_aanmeldingBeantwoord || _appGestart) return false;
   const g = toestelGebruiker();
   if (!g) {
-    stap('aanmeldcontrole zweeg; dit toestel kent geen eerdere gebruiker');
-    return;
+    stap(hoe + '; dit toestel kent geen eerdere gebruiker');
+    return false;
   }
-  stap('aanmeldcontrole zweeg; verder op de aantekening van dit toestel');
+  stap(hoe + '; verder op de aantekening van dit toestel');
   // Een plaatsvervanger: de app gebruikt hiervan alleen uid en e-mail. Er is
   // bewust géén inlogbewijs — schrijven kan pas als de server het goedkeurt,
   // en daar gelden de toegangsregels onverkort.
@@ -785,8 +811,22 @@ setTimeout(() => {
   _opstartUser = plaatsvervanger;
   try {
     startApp();
+    toonAantekeningBalk();
+    return true;
   } catch (e) {
     meldReden(e);
     toonGeenVerbinding(plaatsvervanger);
+    return false;
   }
-}, 6000);
+}
+
+// 1. Meldt het toestel dat er geen verbinding is: meteen beginnen.
+if (!navigator.onLine) startOpAantekening('geen verbinding gemeld');
+
+// 2. Meldt het toestel wél verbinding maar zwijgt de aanmeldcontrole, dan is er
+//    iets anders mis — een telefoon die denkt online te zijn terwijl er niets
+//    doorkomt. Normaal antwoordt Firebase binnen een halve seconde, dus na drie
+//    seconden mogen we ervan uitgaan dat er geen antwoord meer komt.
+//    ⚠ Bewust geen keuze op apparaatsoort: een iPad meldt zich als desktop, en
+//    "toon desktopversie" doet hetzelfde op een telefoon.
+setTimeout(() => { startOpAantekening('aanmeldcontrole zweeg'); }, 3000);

@@ -1,3 +1,45 @@
+## v3.33.9 — Eerst het rooster, dan pas de verbinding
+
+v3.33.8 bracht de app voorbij de zwijgende aanmeldcontrole, maar op een iPhone
+gaf dat één keer een rooster en de keer erna niets. Twee gaten in het ontwerp:
+
+- **Er werd 6 seconden gewacht.** Onnodig: nagemeten komen de gegevens er in
+  ongeveer 20 milliseconden uit de voorraad (drie keer achter elkaar offline
+  opnieuw geopend: 23, 22 en 22 ms). Er valt niets te wachten.
+- **De app deed níets als het toestel zei dat het verbinding had** terwijl er in
+  werkelijkheid niets doorkwam. Dan bleef hij wachten op een antwoord dat nooit
+  kwam. Dat verklaart waarom het de tweede keer wegbleef.
+
+- **Meldt het toestel geen verbinding, dan start de app meteen** op de
+  aantekening van dit toestel en toont het laatst bekende rooster. Geen
+  wachttijd.
+- **Meldt het toestel wél verbinding maar zwijgt de aanmeldcontrole langer dan
+  3 seconden, dan gebeurt hetzelfde.** Normaal antwoordt Firebase binnen een
+  halve seconde. ⚠ Bewust geen keuze op apparaatsoort: een iPad meldt zich als
+  desktop en "toon desktopversie" doet hetzelfde op een telefoon.
+- **Een smalle balk bovenin zolang de app op de aantekening draait:** *Geen
+  verbinding — laatst bekende rooster*. Zonder die balk is niet te zien of je
+  naar actuele gegevens kijkt, en bij een rooster is dat geen detail. De balk
+  hangt aan de verbinding, niet aan Firebase: ook als Firebase alsnog
+  antwoordt, is er dan nog steeds geen verbinding. Hij verdwijnt bij het
+  `online`-signaal van de browser.
+
+Ongewijzigd uit v3.33.8: Firebase houdt het laatste woord, en uitloggen wist de
+aantekening vóór het uitloggen zelf.
+
+Nagemeten in de Safari-motor van Playwright, met de Firebase-emulators en de
+aanmeldcontrole kunstmatig tot zwijgen gebracht (89 tests groen):
+
+| Proef | Uitkomst |
+|---|---|
+| Online ingelogd | app normaal, geen balk |
+| Geen verbinding, 3× opnieuw openen | app in beeld na 265, 132 en 231 ms — elke keer, mét balk |
+| Zegt online maar zwijgt | app in beeld na 3,5 seconde |
+| Verbinding terug | balk verdwijnt |
+| Uitloggen | aantekening weg |
+
+---
+
 ## v3.33.8 — De app wacht niet eindeloos op een antwoord dat niet komt
 
 De stempels uit v3.33.7 wezen het aan op het toestel zelf:
