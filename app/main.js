@@ -24,6 +24,46 @@ import { renderBehView } from './views/overzicht.js';
 import { renderRegView } from './views/regels.js';
 import { renderGebView } from './views/gebruikers.js';
 
+// ==== Aantekening van dit toestel (v3.33.8) =================================
+// Gemeten op een iPhone zonder verbinding: de aanmeldcontrole van Firebase
+// antwoordt daar nooit. Geen fout, geen weigering — de vraag "wie is er
+// ingelogd?" blijft simpelweg onbeantwoord, en daardoor kwam de app nooit
+// verder dan de stap 'aanmeldcontrole gestart'. Firebase kunnen we niet
+// repareren; eindeloos wachten hoeven we niet.
+//
+// Daarom legt de app bij elke geslaagde start zelf vast wie er op dit toestel
+// inlogde. Zwijgt de aanmeldcontrole én meldt het toestel dat het geen
+// verbinding heeft, dan gaat de app op die aantekening verder.
+//
+// ⚠ De sleutel bevat de omgeving. /Rooster/ en /Rooster-test/ staan op
+// hetzelfde webadres en delen dus hun opslag; zonder dat onderscheid zou een
+// aantekening uit de testomgeving in live gebruikt kunnen worden.
+const TOESTEL_SLEUTEL = 'rooster_toestel_gebruiker_' + (window.APP_ENV || 'onbekend');
+
+function onthoudToestelGebruiker(user, profiel) {
+  try {
+    localStorage.setItem(TOESTEL_SLEUTEL, JSON.stringify({
+      uid: user.uid,
+      email: user.email || profiel.email || null,
+      profiel,
+      opgeslagen: new Date().toISOString(),
+    }));
+  } catch (e) { /* opslag vol of geweigerd: dan blijft alleen de gewone weg over */ }
+}
+
+function vergeetToestelGebruiker() {
+  try { localStorage.removeItem(TOESTEL_SLEUTEL); } catch (e) { /* niets aan te doen */ }
+}
+
+function toestelGebruiker() {
+  try {
+    const rauw = localStorage.getItem(TOESTEL_SLEUTEL);
+    if (!rauw) return null;
+    const g = JSON.parse(rauw);
+    return (g && g.uid && g.profiel) ? g : null;
+  } catch (e) { return null; }
+}
+
 // ==== Stempels onderweg (v3.33.7) ===========================================
 // Het scherm "Geen verbinding" meldde alleen "geen antwoord" en zei daarmee
 // niet wáár de app op stond te wachten. Deze stempels zetten de laatst
@@ -79,6 +119,9 @@ window.doLogout = async function() {
   if (!confirm('Uitloggen?')) return;
   state.unsubscribers.forEach(fn => fn());
   state.unsubscribers = [];
+  // v3.33.8: eerst de aantekening weg. Bleef die staan, dan zou uitloggen
+  // zonder verbinding niets betekenen — de app zou je er zo weer inlaten.
+  vergeetToestelGebruiker();
   await signOut(auth);
 };
 
@@ -550,6 +593,7 @@ function startApp() {
   state.huidigeView = 'beh';
   renderTabs();
   luisterNaarData();
+  _appGestart = true;
   stap('app gestart');
 }
 
@@ -602,6 +646,8 @@ function isVerbindingsFout(e) {
 
 let _opstartUser = null;
 let _wachtOpVerbinding = false;
+let _aanmeldingBeantwoord = false;
+let _appGestart = false;
 
 // v3.33.5: één plek die bepaalt wat er te zien is. Het laadsymbool verdween
 // vroeger meteen aan het begin van de aanmeldcontrole — dus vóórdat bekend was
@@ -662,6 +708,7 @@ async function opstarten(user) {
     stap('profiel binnen');
     state.user = user;
     state.profiel = profiel;
+    onthoudToestelGebruiker(user, profiel);
 
     if (profiel.wachtwoord_gewijzigd === false) {
       // Eerste aanmelding: wachtwoord wijzigen + akkoord
@@ -692,11 +739,54 @@ async function opstarten(user) {
 
 stap('aanmeldcontrole gestart');
 onAuthStateChanged(auth, async (user) => {
+  _aanmeldingBeantwoord = true;
   if (!user) {
+    // Firebase heeft het laatste woord: zegt hij dat er niemand is, dan is er
+    // niemand — ook als de app al op de aantekening was gestart.
     stap('niemand ingelogd');
+    vergeetToestelGebruiker();
     toonScherm('login');
     return;
   }
   stap('gebruiker bekend');
+  if (_appGestart && state.user && state.user.uid === user.uid) {
+    // De app draaide al op de aantekening en het is dezelfde persoon: niet
+    // opnieuw opstarten, alleen de echte gebruiker erin zetten (die heeft een
+    // geldig inlogbewijs, de aantekening niet).
+    state.user = user;
+    stap('aanmeldcontrole alsnog beantwoord');
+    return;
+  }
   await opstarten(user);
 });
+
+// v3.33.8: noodvoorziening. Twee voorwaarden, allebei nodig — zo kan dit op een
+// computer mét verbinding nooit in werking treden, ook niet op een gedeelde pc.
+// Op apparaatsoort selecteren zou onbetrouwbaar zijn: een iPad meldt zich als
+// desktop, en "toon desktopversie" doet hetzelfde op een telefoon.
+setTimeout(() => {
+  if (_aanmeldingBeantwoord || _appGestart) return;
+  if (navigator.onLine) {
+    stap('aanmeldcontrole nog bezig, wel verbinding');
+    return;
+  }
+  const g = toestelGebruiker();
+  if (!g) {
+    stap('aanmeldcontrole zweeg; dit toestel kent geen eerdere gebruiker');
+    return;
+  }
+  stap('aanmeldcontrole zweeg; verder op de aantekening van dit toestel');
+  // Een plaatsvervanger: de app gebruikt hiervan alleen uid en e-mail. Er is
+  // bewust géén inlogbewijs — schrijven kan pas als de server het goedkeurt,
+  // en daar gelden de toegangsregels onverkort.
+  const plaatsvervanger = { uid: g.uid, email: g.email || g.profiel.email || null };
+  state.user = plaatsvervanger;
+  state.profiel = g.profiel;
+  _opstartUser = plaatsvervanger;
+  try {
+    startApp();
+  } catch (e) {
+    meldReden(e);
+    toonGeenVerbinding(plaatsvervanger);
+  }
+}, 6000);

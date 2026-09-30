@@ -1,3 +1,67 @@
+## v3.33.8 — De app wacht niet eindeloos op een antwoord dat niet komt
+
+De stempels uit v3.33.7 wezen het aan op het toestel zelf:
+
+    laatste stap: aanmeldcontrole gestart
+
+De app was dus volledig opgestart — Firebase geladen, de aanmeldcontrole
+aangezet — en daarna kwam Firebase nooit meer terug. Geen fout, geen weigering:
+de vraag "wie is er ingelogd?" bleef zonder verbinding onbeantwoord, en alles
+daarna (profiel, rooster) kwam nooit aan de beurt. Het was dus nooit de databank
+en nooit het inlogbewijs, maar de stap ervóór.
+
+Nagebootst op de Mint door de opslag die Firebase Auth leest
+(`firebaseLocalStorageDb`) nooit te laten antwoorden: dat geeft exact hetzelfde
+scherm, in zowel Chromium als de Safari-motor.
+
+### De aantekening van dit toestel
+
+Idee van Sierk: laat de app zelf onthouden wie er op dit toestel inlogde, dan is
+Firebase daar niet meer voor nodig.
+
+- **Bij elke geslaagde start legt de app vast wie er inlogde** (gebruikersnummer,
+  e-mail en het profiel), in de opslag van de browser.
+- **Zwijgt de aanmeldcontrole langer dan 6 seconden én meldt het toestel dat het
+  geen verbinding heeft**, dan gaat de app op die aantekening verder en toont het
+  rooster uit de voorraad. Normaal antwoordt Firebase binnen een halve seconde.
+- **Twee voorwaarden, allebei nodig.** Op een computer mét verbinding kan dit
+  daardoor nooit in werking treden, ook niet op een gedeelde pc. ⚠ Bewust géén
+  keuze op apparaatsoort: een iPad meldt zich als desktop en "toon
+  desktopversie" doet hetzelfde op een telefoon — dat zou juist misgaan op het
+  apparaat waar het om draait. Verkeerde verbindingsmelding? Dan treedt de
+  noodvoorziening niet in werking en zit je in de situatie van vóór v3.33.8.
+  Nooit andersom.
+- **Firebase heeft het laatste woord.** Antwoordt hij alsnog met dezelfde
+  persoon, dan neemt de app de echte gebruiker over zonder opnieuw op te
+  starten. Zegt hij "niemand ingelogd", dan komt het inlogscherm en wordt de
+  aantekening gewist.
+- **Uitloggen wist de aantekening**, vóór het uitloggen zelf. Anders zou
+  uitloggen zonder verbinding niets betekenen.
+- ⚠ **De sleutel bevat de omgeving.** `/Rooster/` en `/Rooster-test/` staan op
+  hetzelfde webadres en delen hun opslag; zonder dat onderscheid kon een
+  aantekening uit de testomgeving in live gebruikt worden.
+
+De aantekening bepaalt alleen wat er op het scherm staat, niet wat de server
+accepteert: er hoort geen inlogbewijs bij, en elke wijziging wordt pas
+doorgevoerd als hij bij de server aankomt, waar de toegangsregels onverkort
+gelden.
+
+Nagemeten (89 tests groen, gemeten in de Safari-motor):
+
+| Proef | Uitkomst |
+|---|---|
+| Na inloggen | aantekening staat onder `rooster_toestel_gebruiker_prod` |
+| Storing nagebootst, toestel kent een gebruiker | na 3 s nog *aanmeldcontrole gestart*, na de limiet *app gestart* |
+| Storing nagebootst, onbekend toestel | *dit toestel kent geen eerdere gebruiker*, app blijft dicht |
+| Uitloggen | aantekening weg, inlogscherm terug |
+| Online, niet ingelogd, 12 seconden | inlogscherm, noodvoorziening gaat niet af |
+
+⚠ **Wat níet is aangetoond:** dat het rooster op een echte iPhone ook echt in
+beeld komt. Die gegevens komen uit dezelfde voorraad op het toestel, en of die
+daar wél antwoordt is niet gemeten.
+
+---
+
 ## v3.33.7 — De app vertelt hoe ver hij komt
 
 Deze versie repareert niets. Ze maakt zichtbaar waar het opstarten blijft
