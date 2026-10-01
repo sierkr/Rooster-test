@@ -30,7 +30,7 @@ import {
   laatsteTerugdraaiPunt, laadTerugdraaiPunt, draaiTerug, tijdTekst,
   schrijfactieBezig, zetSchrijfactie, vergeetLaatstePunt, laadExportLog,
 } from '../logboek.js';
-import { meld as dlgMeld, bevestig as dlgBevestig } from '../dialoog.js';
+import { meld as dlgMeld, bevestig as dlgBevestig, vraagTekst as dlgVraagTekst } from '../dialoog.js';
 import {
   laadBezettingMutaties, snapshotStoelen, registreerMutatie, renderRecenteMutaties,
   impactVanaf, impactTekst,
@@ -778,16 +778,16 @@ window.initialiseerPersoonIds = async function() {
       teDoen.push({ id: stoel.id, upd });
     }
   });
-  if (teDoen.length === 0) { alert("Alle bezetters met een naam hebben al een persoon-id."); return; }
-  if (!confirm(`${teDoen.length} bezetter(s) krijgen een persoon-id. Doorgaan?`)) return;
+  if (teDoen.length === 0) { await dlgMeld('Niets te doen', "Alle bezetters met een naam hebben al een persoon-id."); return; }
+  if (!(await dlgBevestig('Weet je het zeker?', `${teDoen.length} bezetter(s) krijgen een persoon-id. Doorgaan?`))) return;
   try {
     for (const t of teDoen) {
       await setDoc(doc(db, 'radiologen', t.id), t.upd, { merge: true });
     }
-    alert(`Persoon-id's toegekend aan ${teDoen.length} bezetter(s).`);
+    await dlgMeld('Gelukt', `Persoon-id's toegekend aan ${teDoen.length} bezetter(s).`);
     renderGebView();
   } catch (e) {
-    alert('Mislukt: ' + (e.message || e));
+    await dlgMeld('Mislukt', (e.message || e));
   }
 };
 
@@ -796,11 +796,11 @@ window.initialiseerPersoonIds = async function() {
 window.controleerBezetting = function() {
   const problemen = controleerAlleBezettingen();
   if (problemen.length === 0) {
-    alert('✓ Alle stoel-tijdlijnen zijn in orde: geen overlap, geen dubbele lopende periodes.');
+    dlgMeld('Gelukt', '✓ Alle stoel-tijdlijnen zijn in orde: geen overlap, geen dubbele lopende periodes.');
     return;
   }
   const tekst = problemen.map(p => `• ${p.code} (${p.id}):\n    - ${p.problemen.join('\n    - ')}`).join('\n\n');
-  alert(`⚠ ${problemen.length} stoel(en) met een probleem in de tijdlijn:\n\n${tekst}\n\nCorrigeer dit via Wissel/Vertrek of neem contact op met de beheerder.`);
+  dlgMeld('Let op', `⚠ ${problemen.length} stoel(en) met een probleem in de tijdlijn:\n\n${tekst}\n\nCorrigeer dit via Wissel/Vertrek of neem contact op met de beheerder.`);
 };
 
 window.opslaanParttime = async function() {
@@ -852,9 +852,9 @@ window.opslaanParttime = async function() {
         await setDoc(doc(db, 'radiologen', r.id), update, { merge: true });
       }
     }
-    alert('Parttime, vakantierecht en in-dienst opgeslagen.');
+    await dlgMeld('Gelukt', 'Parttime, vakantierecht en in-dienst opgeslagen.');
   } catch (e) {
-    alert('Opslaan mislukt: ' + e.message);
+    await dlgMeld('Opslaan mislukt', e.message);
   }
 };
 
@@ -886,7 +886,7 @@ window.opslaanInvallers = async function() {
 
       if (entry) {
         if (!code) {
-          alert(`Waarnemer ${slotId} is actief; een lege code kan niet. Gebruik het schuifje om de waarnemer per datum te laten stoppen.`);
+          await dlgMeld('Niet mogelijk', `Waarnemer ${slotId} is actief; een lege code kan niet. Gebruik het schuifje om de waarnemer per datum te laten stoppen.`);
           return;
         }
         entry.code = code;
@@ -903,14 +903,14 @@ window.opslaanInvallers = async function() {
       } else if (code) {
         // Leeg slot met ingetypte code maar geen periode: activeren hoort via het
         // schuifje (met startdatum), zodat de waarnemer een geldige periode krijgt.
-        alert(`Zet het schuifje bij ${slotId} aan om ${code} te activeren met een startdatum.`);
+        await dlgMeld('Controleer de invoer', `Zet het schuifje bij ${slotId} aan om ${code} te activeren met een startdatum.`);
         return;
       }
     }
-    alert('Waarnemers opgeslagen.');
+    await dlgMeld('Gelukt', 'Waarnemers opgeslagen.');
     renderGebView();
   } catch (e) {
-    alert('Opslaan mislukt: ' + e.message);
+    await dlgMeld('Opslaan mislukt', e.message);
   }
 };
 
@@ -951,8 +951,8 @@ window.wnrActiveerDoorvoeren = async function(slotId) {
   const code = document.getElementById('waCode').value.trim();
   const achternaam = document.getElementById('waNaam').value.trim();
   const datum = document.getElementById('waDatum').value;
-  if (!code) { alert('Vul een code in.'); return; }
-  if (!datum) { alert('Kies een ingangsdatum.'); return; }
+  if (!code) { await dlgMeld('Controleer de invoer', 'Vul een code in.'); return; }
+  if (!datum) { await dlgMeld('Controleer de invoer', 'Kies een ingangsdatum.'); return; }
   const stoel = state.radiologen.find(r => r.id === slotId);
   const hist = Array.isArray(stoel?.bezetting_historie) ? stoel.bezetting_historie.map(e => ({ ...e })) : [];
   // Clip bestaande periodes per de ingangsdatum en voeg de nieuwe open periode toe.
@@ -973,11 +973,11 @@ window.wnrActiveerDoorvoeren = async function(slotId) {
       voornaam: '', persoon_id: pid, bezetting_historie: geclipt,
     }, { merge: true });
     closeSheet();
-    alert(`${code} is waarnemer op ${slotId} vanaf ${formatDatum(datum, 'kort')}.`);
+    await dlgMeld('Gelukt', `${code} is waarnemer op ${slotId} vanaf ${formatDatum(datum, 'kort')}.`);
     renderGebView();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Doorvoeren'; }
-    alert('Activeren mislukt: ' + (e.message || e));
+    await dlgMeld('Activeren mislukt', (e.message || e));
   }
 };
 
@@ -1001,7 +1001,7 @@ window.openWnrStopSheet = function(slotId) {
 
 window.wnrStopDoorvoeren = async function(slotId) {
   const datum = document.getElementById('wdDatum').value;
-  if (!datum) { alert('Kies een datum.'); return; }
+  if (!datum) { await dlgMeld('Controleer de invoer', 'Kies een datum.'); return; }
   const stoel = state.radiologen.find(r => r.id === slotId);
   const hist = Array.isArray(stoel?.bezetting_historie) ? stoel.bezetting_historie.map(e => ({ ...e })) : [];
   // Sluit lopende/overlappende periodes af per de dag vóór de stopdatum en laat
@@ -1021,11 +1021,11 @@ window.wnrStopDoorvoeren = async function(slotId) {
     }
     await setDoc(doc(db, 'radiologen', slotId), upd, { merge: true });
     closeSheet();
-    alert(`Waarnemer op ${slotId} stopt per ${formatDatum(datum, 'kort')}.`);
+    await dlgMeld('Gelukt', `Waarnemer op ${slotId} stopt per ${formatDatum(datum, 'kort')}.`);
     renderGebView();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Doorvoeren'; }
-    alert('Wijzigen mislukt: ' + (e.message || e));
+    await dlgMeld('Wijzigen mislukt', (e.message || e));
   }
 };
 
@@ -1082,8 +1082,8 @@ window.opslaanNieuweGebruiker = async function() {
   // Vangnet: alleen radioloog/beheerder kan aan een stoel gekoppeld zijn.
   if (!['radioloog','beheerder'].includes(rol)) radId = '';
 
-  if (!naam || !pw) { alert('Vul naam en wachtwoord in'); return; }
-  if (pw.length < 6) { alert('Wachtwoord min. 6 tekens'); return; }
+  if (!naam || !pw) { await dlgMeld('Controleer de invoer', 'Vul naam en wachtwoord in'); return; }
+  if (pw.length < 6) { await dlgMeld('Controleer de invoer', 'Wachtwoord min. 6 tekens'); return; }
 
   // Genereer e-mailadres op basis van naam; voeg teller toe bij duplicaat.
   const basis = naam.toLowerCase().replace(/\s+/g, '.') + '@rooster.intern';
@@ -1100,12 +1100,12 @@ window.opslaanNieuweGebruiker = async function() {
   try {
     await fnGebruikerAanmaken({ email, naam, wachtwoord: pw, rol, radioloog_id: radId || null, omgeving: window.APP_ENV });
     closeSheet();
-    alert(`Gebruiker aangemaakt.\nNaam: ${naam}\nWachtwoord: ${pw}\n\nNoteer dit; het wachtwoord is nu niet meer op te vragen.`);
+    await dlgMeld('Gelukt', `Gebruiker aangemaakt.\nNaam: ${naam}\nWachtwoord: ${pw}\n\nNoteer dit; het wachtwoord is nu niet meer op te vragen.`);
     await laadGebruikers();
     renderGebView();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Aanmaken'; }
-    alert('Aanmaken mislukt: ' + (e.message || 'Onbekende fout'));
+    await dlgMeld('Aanmaken mislukt', (e.message || 'Onbekende fout'));
   }
 };
 
@@ -1218,7 +1218,7 @@ window.opslaanGebruikerUpdate = async function(uid) {
   };
   const aantalMet = state.gebruikers.filter(g => heeftMagGebruikers(g, { permissies })).length;
   if (aantalMet === 0) {
-    alert('Kan niet opslaan: er moet minstens één gebruiker zijn met "Gebruikers"-permissie.');
+    await dlgMeld('Niet mogelijk', 'Kan niet opslaan: er moet minstens één gebruiker zijn met "Gebruikers"-permissie.');
     return;
   }
 
@@ -1228,30 +1228,32 @@ window.opslaanGebruikerUpdate = async function(uid) {
     await laadGebruikers();
     renderGebView();
   } catch (e) {
-    alert('Wijzigen mislukt: ' + e.message);
+    await dlgMeld('Wijzigen mislukt', e.message);
   }
 };
 
 // v3.30.0 (H3): de reset genereert server-side een willekeurig tijdelijk
 // wachtwoord (geen vast standaardwachtwoord meer) en toont dat eenmalig.
 window.gebruikerWachtwoordReset = async function(uid, email) {
-  if (!confirm(`Wachtwoord van ${email} resetten?\n\nEr wordt een willekeurig tijdelijk wachtwoord gegenereerd dat je eenmalig te zien krijgt. De gebruiker moet daarna bij de eerste login zelf een nieuw wachtwoord kiezen.`)) return;
+  if (!(await dlgBevestig('Weet je het zeker?', `Wachtwoord van ${email} resetten?\n\nEr wordt een willekeurig tijdelijk wachtwoord gegenereerd dat je eenmalig te zien krijgt. De gebruiker moet daarna bij de eerste login zelf een nieuw wachtwoord kiezen.`))) return;
   try {
     const res = await fnGebruikerResetWachtwoord({ uid, omgeving: window.APP_ENV });
     const tijdelijk = res?.data?.tijdelijkWachtwoord;
     if (tijdelijk) {
-      prompt(`Tijdelijk wachtwoord voor ${email} — noteer of kopieer het nu; het is later niet meer op te vragen:`, tijdelijk);
+      await dlgVraagTekst('Tijdelijk wachtwoord',
+        `Tijdelijk wachtwoord voor ${email} — noteer of kopieer het nu; het is later niet meer op te vragen:`,
+        { waarde: tijdelijk, alleenTonen: true });
     } else {
-      alert(`Wachtwoord van ${email} is gereset.`);
+      await dlgMeld('Gelukt', `Wachtwoord van ${email} is gereset.`);
     }
   } catch (e) {
-    alert('Reset mislukt: ' + (e.message || 'onbekende fout'));
+    await dlgMeld('Reset mislukt', (e.message || 'onbekende fout'));
   }
 };
 
 window.gebruikerVerwijderen = async function(uid, email) {
   if ((email || '').toLowerCase() === vasteBeheerderEmail()) {
-    alert('Hoofdbeheerder-account kan niet verwijderd worden.');
+    await dlgMeld('Niet mogelijk', 'Hoofdbeheerder-account kan niet verwijderd worden.');
     return;
   }
   const overigen = state.gebruikers.filter(g => g.id !== uid);
@@ -1260,16 +1262,16 @@ window.gebruikerVerwijderen = async function(uid, email) {
     return !!eff.mag_gebruikers;
   }).length;
   if (aantalMet === 0) {
-    alert('Kan niet verwijderen: er moet minstens één gebruiker met "Gebruikers"-permissie overblijven.');
+    await dlgMeld('Niet mogelijk', 'Kan niet verwijderen: er moet minstens één gebruiker met "Gebruikers"-permissie overblijven.');
     return;
   }
-  if (!confirm(`Gebruiker ${email} verwijderen?\n\nDit verwijdert zowel het account als het profiel.`)) return;
+  if (!(await dlgBevestig('Weet je het zeker?', `Gebruiker ${email} verwijderen?\n\nDit verwijdert zowel het account als het profiel.`))) return;
   try {
     await fnGebruikerVerwijderen({ uid, omgeving: window.APP_ENV });
     await laadGebruikers();
     renderGebView();
   } catch (e) {
-    alert('Verwijderen mislukt: ' + (e.message || 'onbekende fout'));
+    await dlgMeld('Verwijderen mislukt', (e.message || 'onbekende fout'));
   }
 };
 
@@ -1324,16 +1326,16 @@ window.actImportFile        = (input) => actImportFile(input, renderGebView);
 
 window.actMaakBackup = async function() {
   if (IS_TEST_DB) {
-    alert('In de testomgeving kan geen backup gemaakt worden.\n\nMaak een backup in de live-agenda; die kun je desgewenst in de testomgeving terugzetten om met actuele data te oefenen.');
+    await dlgMeld('Niet mogelijk', 'In de testomgeving kan geen backup gemaakt worden.\n\nMaak een backup in de live-agenda; die kun je desgewenst in de testomgeving terugzetten om met actuele data te oefenen.');
     return;
   }
   try {
     const knop = document.querySelector('[onclick="window.actMaakBackup()"]');
     if (knop) { knop.disabled = true; knop.textContent = 'Bezig\u2026'; }
     await maakClientBackup('handmatig');
-    alert('Backup gedownload. Bewaar dit bestand op een veilige plek.');
+    await dlgMeld('Gelukt', 'Backup gedownload. Bewaar dit bestand op een veilige plek.');
   } catch (e) {
-    alert('Backup mislukt: ' + e.message);
+    await dlgMeld('Backup mislukt', e.message);
   } finally {
     renderGebView();
   }
@@ -1342,17 +1344,15 @@ window.actMaakBackup = async function() {
 window.actHerstelBackup = async function(input) {
   const file = input?.files?.[0];
   if (!file) return;
-  if (!confirm(
-    'WAARSCHUWING: Dit overschrijft alle Firestore-data met de inhoud van de backup.\n\n' +
+  if (!(await dlgBevestig('Weet je het zeker?', 'WAARSCHUWING: Dit overschrijft alle Firestore-data met de inhoud van de backup.\n\n' +
     'Auth-accounts (wachtwoorden) worden NIET aangetast.\n\n' +
-    'Doorgaan?'
-  )) return;
+    'Doorgaan?'))) return;
   const meldingen = [];
   try {
     await herstelClientBackup(file, (t) => meldingen.push(t));
-    alert('Restore voltooid:\n\n' + meldingen.join('\n'));
+    await dlgMeld('Restore voltooid', meldingen.join('\n'));
   } catch (e) {
-    alert('Restore mislukt: ' + e.message + '\n\n' + meldingen.join('\n'));
+    await dlgMeld('Restore mislukt', e.message + '\n\n' + meldingen.join('\n'));
   }
   input.value = '';
 };
@@ -1405,8 +1405,8 @@ window.opslaanWissel = async function(slotId) {
   const vr = Math.max(0, Math.min(100, parseInt(document.getElementById('wsVr').value, 10) || 40));
   const datum = document.getElementById('wsDatum').value;
   const inDienst = document.getElementById('wsInDienst').value || datum;
-  if (!code || !achternaam) { alert('Code en achternaam zijn verplicht.'); return; }
-  if (!datum) { alert('Kies een ingangsdatum.'); return; }
+  if (!code || !achternaam) { await dlgMeld('Controleer de invoer', 'Code en achternaam zijn verplicht.'); return; }
+  if (!datum) { await dlgMeld('Controleer de invoer', 'Kies een ingangsdatum.'); return; }
 
   const stoel = state.radiologen.find(r => r.id === slotId);
   const oudeHist = Array.isArray(stoel?.bezetting_historie) ? [...stoel.bezetting_historie] : [];
@@ -1452,7 +1452,7 @@ window.opslaanWissel = async function(slotId) {
       + `Dat blijft op de stoel staan, maar hoort daarna bij ${code}.`;
     if (impW.nabij) msg += `\n\n⚠ ${impW.nabijeDagen.length} dag(en) hiervan liggen binnenkort.`;
     msg += `\n\nDoorvoeren?`;
-    if (!confirm(msg)) return;
+    if (!(await dlgBevestig('Weet je het zeker?', msg))) return;
   }
   const voorSnap = snapshotStoelen([slotId]);
   try {
@@ -1473,10 +1473,10 @@ window.opslaanWissel = async function(slotId) {
       beschrijving: `Wissel op ${slotId}: ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}`,
     });
     closeSheet();
-    alert(`Bezetting van ${slotId} aangepast: ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}.`);
+    await dlgMeld('Gelukt', `Bezetting van ${slotId} aangepast: ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}.`);
     if (window.__herlaadBeheer) await window.__herlaadBeheer();
   } catch (e) {
-    alert('Opslaan mislukt: ' + e.message);
+    await dlgMeld('Opslaan mislukt', e.message);
   }
 };
 
@@ -1521,19 +1521,19 @@ window.nieuweStoelDoorvoeren = async function() {
   const vr = Math.max(0, Math.min(100, parseInt(document.getElementById('nsVr').value, 10) || 40));
   const datum = document.getElementById('nsDatum').value;
   const inDienst = document.getElementById('nsInDienst').value || datum;
-  if (!code || !achternaam) { alert('Code en achternaam zijn verplicht.'); return; }
-  if (!datum) { alert('Kies een ingangsdatum.'); return; }
+  if (!code || !achternaam) { await dlgMeld('Controleer de invoer', 'Code en achternaam zijn verplicht.'); return; }
+  if (!datum) { await dlgMeld('Controleer de invoer', 'Kies een ingangsdatum.'); return; }
 
   // Max 12 gelijktijdig actieve vaste stoelen (op de ingangsdatum) — zelfde
   // grens als bij →Vast met "➕ Nieuwe stoel".
   if (vasteRadsOpDatum(datum).length >= 12) {
-    alert('Er zijn al 12 actieve stoelen op die datum — dat is het maximum. Hef eerst een stoel op (Vertrek).');
+    await dlgMeld('Niet mogelijk', 'Er zijn al 12 actieve stoelen op die datum — dat is het maximum. Hef eerst een stoel op (Vertrek).');
     return;
   }
 
-  if (!confirm(`Nieuwe stoel aanmaken voor ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}?
+  if (!(await dlgBevestig('Weet je het zeker?', `Nieuwe stoel aanmaken voor ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}?
 
-Er komt een kolom bij in het overzicht.`)) return;
+Er komt een kolom bij in het overzicht.`))) return;
 
   const btn = document.querySelector('#sheetBody .btn-primary');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
@@ -1562,11 +1562,11 @@ Er komt een kolom bij in het overzicht.`)) return;
       beschrijving: `Nieuwe stoel ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}`,
     });
     closeSheet();
-    alert(`Nieuwe stoel aangemaakt: ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}.`);
+    await dlgMeld('Gelukt', `Nieuwe stoel aangemaakt: ${code} · ${achternaam} per ${formatDatum(datum, 'kort')}.`);
     renderGebView();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Aanmaken'; }
-    alert('Aanmaken mislukt: ' + (e.message || e));
+    await dlgMeld('Aanmaken mislukt', (e.message || e));
   }
 };
 
@@ -1594,7 +1594,7 @@ function previewMigratie(vanSlot, naarSlot, datum) {
 
 window.openMaakVastSheet = function(wSlotId) {
   const stoel = state.radiologen.find(r => r.id === wSlotId);
-  if (!stoel || stoel.actief === false || !stoel.code) { alert('Deze W-stoel is leeg.'); return; }
+  if (!stoel || stoel.actief === false || !stoel.code) { dlgMeld('Niet mogelijk', 'Deze W-stoel is leeg.'); return; }
 
   const huidig = bezettingOpDatum(wSlotId, vandaagIso());
   const defDatum = vandaagIso();
@@ -1654,21 +1654,21 @@ window.maakVastDoorvoeren = async function(wSlotId) {
   let naarSlot = document.getElementById('mvSlot').value;
   const datum = document.getElementById('mvDatum').value;
   const inDienst = document.getElementById('mvInDienst').value || datum;
-  if (!datum || !naarSlot) { alert('Kies stoel en datum.'); return; }
+  if (!datum || !naarSlot) { await dlgMeld('Controleer de invoer', 'Kies stoel en datum.'); return; }
 
   const nieuweStoel = (naarSlot === '__NIEUW__');
-  if (!nieuweStoel && !isVasteStoel(naarSlot)) { alert('Ongeldige doel-stoel.'); return; }
+  if (!nieuweStoel && !isVasteStoel(naarSlot)) { await dlgMeld('Controleer de invoer', 'Ongeldige doel-stoel.'); return; }
 
   // Max 12 gelijktijdig actieve vaste stoelen (op de ingangsdatum).
   if (nieuweStoel && vasteRadsOpDatum(datum).length >= 12) {
-    alert('Er zijn al 12 actieve stoelen op die datum — dat is het maximum. Hef eerst een stoel op (Vertrek).');
+    await dlgMeld('Niet mogelijk', 'Er zijn al 12 actieve stoelen op die datum — dat is het maximum. Hef eerst een stoel op (Vertrek).');
     return;
   }
 
   const bevestiging = nieuweStoel
     ? `Maak ${wSlotId} vast op een NIEUWE stoel per ${formatDatum(datum, 'kort')}?\n\nEr komt een kolom bij. Toewijzingen, vakantie-V, diensten, wensen en gebruikerskoppeling vanaf die datum verhuizen mee.`
     : `Maak ${wSlotId} vast in ${naarSlot} per ${formatDatum(datum, 'kort')}?\n\nDe doelstoel toont vanaf die datum uitsluitend de indeling van ${wSlotId} (eventuele resten van de vorige bezetter worden gewist). Toewijzingen, vakantie-V, diensten, wensen en gebruikerskoppeling verhuizen mee. Niet ongedaan te maken zonder handmatig terugdraaien.`;
-  if (!confirm(bevestiging)) return;
+  if (!(await dlgBevestig('Weet je het zeker?', bevestiging))) return;
 
   const btn = document.querySelector('#sheetBody .btn-primary');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
@@ -1697,13 +1697,13 @@ window.maakVastDoorvoeren = async function(wSlotId) {
       beschrijving: `→ Vast: ${wSlotId} → ${naarSlot} per ${formatDatum(datum, 'kort')}`,
     });
     closeSheet();
-    alert(nieuweStoel
+    await dlgMeld('Gelukt', nieuweStoel
       ? `${wSlotId} → nieuwe stoel doorgevoerd per ${formatDatum(datum, 'kort')}.`
       : `${wSlotId} → ${naarSlot} doorgevoerd per ${formatDatum(datum, 'kort')}.`);
     renderGebView();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Doorvoeren'; }
-    alert('Migratie mislukt: ' + (e.message || e));
+    await dlgMeld('Migratie mislukt', (e.message || e));
   }
 };
 
@@ -1731,10 +1731,10 @@ window.openVertrekSheet = function(slotId) {
 
 window.vertrekDoorvoeren = async function(slotId) {
   const datum = document.getElementById('vtDatum').value;
-  if (!datum) { alert('Kies een vertrekdatum.'); return; }
+  if (!datum) { await dlgMeld('Controleer de invoer', 'Kies een vertrekdatum.'); return; }
   const stoel = state.radiologen.find(r => r.id === slotId);
-  if (!stoel) { alert('Stoel niet gevonden.'); return; }
-  if (!confirm(`Laat stoel ${slotId} vertrekken per ${formatDatum(datum, 'kort')}?\n\nDe kolom verdwijnt vanaf die datum. De historie ervóór blijft behouden.`)) return;
+  if (!stoel) { await dlgMeld('Niet mogelijk', 'Stoel niet gevonden.'); return; }
+  if (!(await dlgBevestig('Weet je het zeker?', `Laat stoel ${slotId} vertrekken per ${formatDatum(datum, 'kort')}?\n\nDe kolom verdwijnt vanaf die datum. De historie ervóór blijft behouden.`))) return;
 
   // Planner helpen: wat staat er vanaf de vertrekdatum nog op deze stoel?
   // v3.29.0 (H2): eerst het datumvenster uitbreiden tot de laatste bestaande
@@ -1746,7 +1746,7 @@ window.vertrekDoorvoeren = async function(slotId) {
       + `Na vertrek verdwijnt de kolom; die geplande gegevens blijven in de historie maar horen bij niemand meer.`;
     if (impV.nabij) msg += `\n\n⚠ ${impV.nabijeDagen.length} dag(en) hiervan liggen binnenkort.`;
     msg += `\n\nDoorvoeren?`;
-    if (!confirm(msg)) return;
+    if (!(await dlgBevestig('Weet je het zeker?', msg))) return;
   }
   const voorSnap = snapshotStoelen([slotId]);
   // De bezetter is actief t/m de dag vóór de vertrekdatum.
@@ -1778,31 +1778,31 @@ window.vertrekDoorvoeren = async function(slotId) {
       type: 'vertrek', stoelen: [slotId], voor: { [slotId]: voorSnap[slotId] }, ingangsdatum: datum,
       beschrijving: `Vertrek ${slotId} per ${formatDatum(datum, 'kort')}`,
     });
-    alert(`Stoel ${slotId} vertrekt per ${formatDatum(datum, 'kort')}.`);
+    await dlgMeld('Gelukt', `Stoel ${slotId} vertrekt per ${formatDatum(datum, 'kort')}.`);
     renderGebView();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Doorvoeren'; }
-    alert('Opslaan mislukt: ' + (e.message || e));
+    await dlgMeld('Opslaan mislukt', (e.message || e));
   }
 };
 
 window.vertrekIntrekken = async function(slotId) {
   const stoel = state.radiologen.find(r => r.id === slotId);
-  if (!stoel) { alert('Stoel niet gevonden.'); return; }
+  if (!stoel) { await dlgMeld('Niet mogelijk', 'Stoel niet gevonden.'); return; }
   const hist = Array.isArray(stoel.bezetting_historie) ? stoel.bezetting_historie.map(e => ({ ...e })) : [];
-  if (hist.length === 0) { alert('Geen bezetting om te herstellen.'); return; }
+  if (hist.length === 0) { await dlgMeld('Niet mogelijk', 'Geen bezetting om te herstellen.'); return; }
   // Laatste (meest recente) entry zoeken via de canonieke helper.
   const e = laatsteEntry(hist);
   const li = e ? hist.indexOf(e) : -1;
-  if (li < 0 || !e.tot) { alert('Deze stoel heeft geen vertrek om in te trekken.'); return; }
-  if (!confirm(`Vertrek van ${e.code || slotId} (${esc(e.achternaam || '')}) intrekken?\n\nDe stoel wordt weer doorlopend actief en de kolom komt terug.`)) return;
+  if (li < 0 || !e.tot) { await dlgMeld('Niet mogelijk', 'Deze stoel heeft geen vertrek om in te trekken.'); return; }
+  if (!(await dlgBevestig('Weet je het zeker?', `Vertrek van ${e.code || slotId} (${esc(e.achternaam || '')}) intrekken?\n\nDe stoel wordt weer doorlopend actief en de kolom komt terug.`))) return;
   hist[li] = { ...e, tot: null };
   try {
     await setDoc(doc(db, 'radiologen', slotId), { bezetting_historie: hist }, { merge: true });
-    alert(`Vertrek van ${slotId} ingetrokken.`);
+    await dlgMeld('Gelukt', `Vertrek van ${slotId} ingetrokken.`);
     renderGebView();
   } catch (err) {
-    alert('Herstellen mislukt: ' + (err.message || err));
+    await dlgMeld('Herstellen mislukt', (err.message || err));
   }
 };
 
@@ -1998,7 +1998,7 @@ window.toggleJaaroverzicht = async function() {
   try {
     await setDoc(doc(db, 'instellingen', 'ui'), { toon_jaaroverzicht: nieuw }, { merge: true });
   } catch (e) {
-    alert('Opslaan mislukt: ' + e.message);
+    await dlgMeld('Opslaan mislukt', e.message);
   }
 };
 
@@ -2008,8 +2008,8 @@ window.verwijderVerlopenWensen = async function() {
   const vandaag = vandaagIso();
   try {
     const snap = await getDocs(query(collection(db, 'wensen'), where('datum', '<', vandaag)));
-    if (snap.empty) { alert('Geen verlopen wensen gevonden.'); return; }
-    if (!confirm(`${snap.size} verlopen wens(en) gevonden (datum vóór ${formatDatum(vandaag, 'kort')}).\n\nVerwijderen?`)) return;
+    if (snap.empty) { await dlgMeld('Niets gevonden', 'Geen verlopen wensen gevonden.'); return; }
+    if (!(await dlgBevestig('Weet je het zeker?', `${snap.size} verlopen wens(en) gevonden (datum vóór ${formatDatum(vandaag, 'kort')}).\n\nVerwijderen?`))) return;
     const BATCH = 400;
     let verwijderd = 0;
     const docs = snap.docs;
@@ -2019,9 +2019,9 @@ window.verwijderVerlopenWensen = async function() {
       await batch.commit();
       verwijderd += Math.min(BATCH, docs.length - i);
     }
-    alert(`${verwijderd} verlopen wens(en) verwijderd.`);
+    await dlgMeld('Gelukt', `${verwijderd} verlopen wens(en) verwijderd.`);
   } catch (e) {
-    alert('Mislukt: ' + e.message);
+    await dlgMeld('Mislukt', e.message);
   }
 };
 
@@ -2030,12 +2030,10 @@ window.verwijderOudeGegevens = async function() {
   grens.setFullYear(grens.getFullYear() - 2);
   const grensdatum = grens.toISOString().slice(0, 10);
 
-  const bevestig = confirm(
-    `Gegevens ouder dan 2 jaar verwijderen?\n\n` +
+  const bevestig = (await dlgBevestig('Weet je het zeker?', `Gegevens ouder dan 2 jaar verwijderen?\n\n` +
     `Alles vóór ${formatDatum(grensdatum, 'kort')} wordt permanent gewist:\n` +
     `• Indeling-data\n• Wensen\n\n` +
-    `Dit kan niet ongedaan worden gemaakt.`
-  );
+    `Dit kan niet ongedaan worden gemaakt.`));
   if (!bevestig) return;
 
   try {
@@ -2066,11 +2064,11 @@ window.verwijderOudeGegevens = async function() {
     }
 
     if (totaal === 0) {
-      alert('Geen gegevens gevonden ouder dan 2 jaar.');
+      await dlgMeld('Niets gevonden', 'Geen gegevens gevonden ouder dan 2 jaar.');
     } else {
-      alert(`${totaal} document(en) verwijderd (indeling + wensen vóór ${formatDatum(grensdatum, 'kort')}).`);
+      await dlgMeld('Gelukt', `${totaal} document(en) verwijderd (indeling + wensen vóór ${formatDatum(grensdatum, 'kort')}).`);
     }
   } catch (e) {
-    alert('Mislukt: ' + e.message);
+    await dlgMeld('Mislukt', e.message);
   }
 };

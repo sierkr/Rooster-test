@@ -1,19 +1,38 @@
-## v3.34.1 — Opnieuw inloggen bleef hangen
+## v3.35.1 — Opnieuw inloggen bleef hangen (zelfde reparatie als v3.34.1)
 
-Bestaande fout, gevonden tijdens het testen van v3.34.0: wie uitlogde en
-meteen opnieuw inlogde in hetzelfde venster, bleef op het inlogscherm hangen
-tot de app helemaal werd afgesloten. Sinds v3.33.8. Gemeten op v3.33.16 in de
-oefendatabank; stempel: *aanmeldcontrole alsnog beantwoord*.
+v3.35.0 met de reparatie uit v3.34.1 erbij (`app/main.js` is gelijk aan die
+van v3.34.1). Zie v3.34.1 hieronder. v3.35.0 is nooit uitgerold.
 
-Oorzaak: bij "niemand ingelogd" bleven `_appGestart` en `state.user` staan.
-Het opnieuw inloggen zag daardoor "zelfde gebruiker, app draait al" — de tak
-voor de aantekening — en sloeg het opstarten over. Nu zet "niemand
-ingelogd" ook `_appGestart`, `_opstartUser`, `state.user` en
-`state.profiel` terug.
+## v3.35.0 — Geen enkel gewoon browservenster meer
 
-De offline-proef kreeg stap H (uitloggen en meteen opnieuw inloggen). Op
-v3.34.0 faalt die, op v3.34.1 drie keer achter elkaar geslaagd. 89/89 groen.
-Niet gemeten: op een iPhone. v3.34.0 is nooit uitgerold.
+Vervolg op v3.34.0. De laatste 123 gewone browservensters (`alert`,
+`confirm`, `prompt`) zijn vervangen door de eigen vensters uit
+`app/dialoog.js`: 78 in Gebruikers/Beheer, 19 in Vakantie, 13 in Regels,
+13 in Wensen. Daarmee staat er in de hele app geen enkel browservenster
+meer dat een browser stil kan onderdrukken (de oorzaak van de import die op
+7 september niets deed).
+
+- Teksten ongewijzigd. Elke melding kreeg een korte kop: "Gelukt",
+  "Mislukt" (of "Opslaan mislukt" e.d., uit de oude tekst gehaald),
+  "Controleer de invoer", "Niet mogelijk", "Niets gevonden", "Let op". Elke
+  ja/nee-vraag heeft de kop "Weet je het zeker?".
+- De code wacht op het venster, zoals hij vroeger op het browservenster
+  wachtte. Alleen in zes functies die niet kunnen wachten staat de melding
+  vlak voor `return`; daar maakt het niets uit.
+- `vraagTekst()` kreeg drie opties: `leegMag` (leeg laten ≠ annuleren, voor
+  de toelichting bij het afwijzen van een wens), `waarde` (vooraf ingevuld)
+  en `alleenTonen` (alleen-lezen, geselecteerd, één knop — voor het
+  tijdelijke wachtwoord na een reset, dat je moet kunnen kopiëren).
+- ⚠ In `gebruikers.js` heten de vensters `dlgMeld` / `dlgBevestig` /
+  `dlgVraagTekst`: er bestaat daar een lokale variabele `bevestig`.
+
+Gemeten in de oefendatabank: regels (invoercontrole), wens verwijderen
+(annuleren laat staan), wens afwijzen (annuleren = niets, leeg = afgewezen
+zonder toelichting), verlopen wensen (annuleren verwijdert niets),
+hoofdbeheerder verwijderen (geweigerd), stoel-tijdlijnen, vakantie-invoer,
+tijdelijk-wachtwoordvenster, en Beheer zonder verbinding (geblokkeerd). Geen
+gewone browservensters, geen fouten. Offline-proef geslaagd, 89/89 groen.
+Niet doorgeklikt: de overige ~100 routes één voor één, en niets op een iPhone.
 
 ## v3.34.0 — Zonder verbinding niet wijzigen, en geen stille fouten meer
 
