@@ -456,38 +456,9 @@ async function _tekenGebView(container) {
   `;
 
   // v3.33.2: terugdraai-blok, direct onder de import. Er is precies één punt —
-  // dat van de laatste import — dus er valt niets te kiezen en er kan niet per
-  // ongeluk verder terug gegrepen worden dan die ene import.
-  htmlExcel += `
-    <div style="margin-top: 1.5rem;">
-      <div class="summary-label" style="margin-bottom: 6px;">Laatste import terugdraaien</div>
-      <div class="card">
-        ${!terugPunt ? `
-          <p class="muted" style="margin:0; font-size:12px;">
-            Er is nog geen import om terug te draaien. Bij elke import bewaart de app
-            de vorige inhoud van de betrokken dagen; alleen de laatste import kan
-            teruggedraaid worden.
-          </p>
-        ` : terugPunt.teruggedraaid ? `
-          <p style="margin:0 0 4px; font-size:13px;">
-            <b>${esc(terugPunt.bestandsnaam || 'onbekend bestand')}</b> · ${esc(terugPunt.jaren || '')} · ${terugPunt.aantal_dagen || 0} dagen
-          </p>
-          <p class="muted" style="margin:0; font-size:12px;">
-            Al teruggedraaid op ${esc(tijdTekst(terugPunt.teruggedraaid_op))}${terugPunt.teruggedraaid_door ? ' door ' + esc(terugPunt.teruggedraaid_door) : ''}.
-          </p>
-        ` : `
-          <p style="margin:0 0 4px; font-size:13px;">
-            <b>${esc(terugPunt.bestandsnaam || 'onbekend bestand')}</b> · ${esc(terugPunt.jaren || '')} · ${terugPunt.aantal_dagen || 0} dagen
-          </p>
-          <p class="muted" style="margin:0 0 10px; font-size:12px;">
-            Geïmporteerd op ${esc(tijdTekst(terugPunt.wanneer || terugPunt.wanneer_lokaal))}${terugPunt.naam || terugPunt.email ? ' door ' + esc(terugPunt.naam || terugPunt.email) : ''}.
-            Terugdraaien zet precies deze dagen terug naar hoe ze vlak vóór die import waren.
-          </p>
-          <button class="btn" style="width:100%;" onclick="window.draaiLaatsteImportTerug()">↩ Deze import terugdraaien</button>
-        `}
-      </div>
-    </div>
-  `;
+  // dat van de laatste import (sinds v3.36.0: of publicatie) — dus er valt
+  // niets te kiezen en er kan niet per ongeluk verder terug gegrepen worden.
+  htmlExcel += terugdraaiBlokHtml(terugPunt);
 
   // Database-backup sectie
   if (magGebruikersBeheren()) {
@@ -1138,7 +1109,7 @@ window.gebruikerBewerken = function(uid) {
   document.getElementById('sheetTitle').textContent = g.naam || g.email;
   document.getElementById('sheetSub').textContent = 'Rol, koppeling en permissies';
   document.getElementById('sheetBody').innerHTML = `
-    ${isVasteBeheerder ? `<div class="form-info" style="margin-bottom: 1rem; font-size: 12px;">🔒 Hoofdbeheerder-account. Rol en koppeling staan vast.</div>` : ''}
+    ${isVasteBeheerder ? `<div class="form-info" style="margin-bottom: 1rem; font-size: 12px;">🔒 Hoofdbeheerder-account. De rol staat vast.</div>` : ''}
     ${(isEigenAccount && !isVasteBeheerder) ? `<div class="form-info" style="margin-bottom: 1rem; font-size: 12px;">⚠ Eigen account. "Gebruikers" kan niet uitgezet worden om lockout te voorkomen.</div>` : ''}
     <div class="form-field"><label class="form-label">Rol${isVasteBeheerder?' 🔒':''}</label>
       <select class="select" id="wzRol" onchange="window.wzRolWissel()" ${isVasteBeheerder?'disabled':''}>
@@ -1148,8 +1119,8 @@ window.gebruikerBewerken = function(uid) {
         <option value="technician" ${(g.rol==='technician' || g.rol==='lezer')?'selected':''}>Technician</option>
       </select>
     </div>
-    <div class="form-field" id="wzKoppelVeld" style="display: ${['radioloog','beheerder'].includes(g.rol) ? 'block' : 'none'};"><label class="form-label">Gekoppeld aan${isVasteBeheerder?' 🔒':''}</label>
-      <select class="select" id="wzRadId" ${isVasteBeheerder?'disabled':''}>
+    <div class="form-field" id="wzKoppelVeld" style="display: ${(isVasteBeheerder || ['radioloog','beheerder'].includes(g.rol)) ? 'block' : 'none'};"><label class="form-label">Gekoppeld aan</label>
+      <select class="select" id="wzRadId">
         <option value="" ${!g.radioloog_id?'selected':''}>— geen —</option>
         <optgroup label="Vaste radiologen">
           ${rads.map(r => `<option value="${r.id}" ${g.radioloog_id===r.id?'selected':''}>${r.code} · ${esc(r.achternaam)}</option>`).join('')}
@@ -1202,7 +1173,10 @@ window.opslaanGebruikerUpdate = async function(uid) {
   const isVasteBeheerder = (g?.email || '').toLowerCase() === vasteBeheerderEmail();
 
   const rol = isVasteBeheerder ? 'beheerder' : document.getElementById('wzRol').value;
-  let radId = isVasteBeheerder ? (g.radioloog_id || '') : document.getElementById('wzRadId').value;
+  // v3.35.2: bij de hoofdbeheerder staat alleen de rol vast, niet de koppeling
+  // aan een radioloog (besluit Sierk, 1 oktober 2026). Een koppeling kan niemand
+  // buitensluiten; zonder koppeling kon hij geen eigen wens indienen.
+  let radId = document.getElementById('wzRadId')?.value ?? (g.radioloog_id || '');
   // Vangnet: alleen radioloog/beheerder kan aan een stoel gekoppeld zijn.
   if (!['radioloog','beheerder'].includes(rol)) radId = '';
   const permissies = {};
@@ -1284,6 +1258,48 @@ window.herlaadBeheerTab     = () => {
   renderGebView();
 };
 
+// v3.36.0: het terugdraai-blok staat op twee plekken — onder de Excel-import
+// en op het tabblad Indelen (bij Publiceren) — want de knop hoort bij de
+// handeling (bouwnorm F3). Er is nog steeds precies één punt: dat van de
+// laatste import óf publicatie. Eén functie, zodat de twee plekken altijd
+// hetzelfde zeggen.
+function _isPublicatie(punt) { return punt && punt.soort === 'publicatie'; }
+
+export function terugdraaiBlokHtml(terugPunt) {
+  const wat    = _isPublicatie(terugPunt) ? 'publicatie' : 'import';
+  const gedaan = _isPublicatie(terugPunt) ? 'Gepubliceerd' : 'Geïmporteerd';
+  return `
+    <div style="margin-top: 1.5rem;">
+      <div class="summary-label" style="margin-bottom: 6px;">Laatste import of publicatie terugdraaien</div>
+      <div class="card">
+        ${!terugPunt ? `
+          <p class="muted" style="margin:0; font-size:12px;">
+            Er is nog niets om terug te draaien. Bij elke import en elke publicatie
+            bewaart de app de vorige inhoud van de betrokken dagen; alleen de
+            laatste kan teruggedraaid worden.
+          </p>
+        ` : terugPunt.teruggedraaid ? `
+          <p style="margin:0 0 4px; font-size:13px;">
+            <b>${esc(terugPunt.bestandsnaam || 'onbekend bestand')}</b> · ${esc(terugPunt.jaren || '')} · ${terugPunt.aantal_dagen || 0} dagen
+          </p>
+          <p class="muted" style="margin:0; font-size:12px;">
+            Al teruggedraaid op ${esc(tijdTekst(terugPunt.teruggedraaid_op))}${terugPunt.teruggedraaid_door ? ' door ' + esc(terugPunt.teruggedraaid_door) : ''}.
+          </p>
+        ` : `
+          <p style="margin:0 0 4px; font-size:13px;">
+            <b>${esc(terugPunt.bestandsnaam || 'onbekend bestand')}</b> · ${esc(terugPunt.jaren || '')} · ${terugPunt.aantal_dagen || 0} dagen
+          </p>
+          <p class="muted" style="margin:0 0 10px; font-size:12px;">
+            ${gedaan} op ${esc(tijdTekst(terugPunt.wanneer || terugPunt.wanneer_lokaal))}${terugPunt.naam || terugPunt.email ? ' door ' + esc(terugPunt.naam || terugPunt.email) : ''}.
+            Terugdraaien zet precies deze dagen terug naar hoe ze vlak vóór die ${wat} waren.
+          </p>
+          <button class="btn" style="width:100%;" onclick="window.draaiLaatsteImportTerug()">↩ Deze ${wat} terugdraaien</button>
+        `}
+      </div>
+    </div>
+  `;
+}
+
 // v3.33.2: de laatste import terugdraaien. Het venster verschijnt meteen uit de
 // gegevens die al op het scherm staan; de database wordt pas aangeraakt nadat
 // je bevestigt. Voorheen werd er eerst gelezen en gebeurde er ondertussen
@@ -1291,16 +1307,17 @@ window.herlaadBeheerTab     = () => {
 window.draaiLaatsteImportTerug = async () => {
   const punt = await laatsteTerugdraaiPunt();
   if (!punt) { await dlgMeld('Niets om terug te draaien', 'Er is geen terugdraai-punt bewaard.'); return; }
-  if (punt.teruggedraaid) { await dlgMeld('Al teruggedraaid', 'Deze import is al teruggedraaid.'); return; }
+  const wat = _isPublicatie(punt) ? 'publicatie' : 'import';
+  if (punt.teruggedraaid) { await dlgMeld('Al teruggedraaid', `Deze ${wat} is al teruggedraaid.`); return; }
   if (schrijfactieBezig()) {
     await dlgMeld('Even wachten', 'Er loopt al een import of terugdraaiing. Wacht tot die klaar is.');
     return;
   }
 
   const ok = await dlgBevestig(
-    'Import terugdraaien',
-    `Je zet ${punt.aantal_dagen || 0} dagen (${punt.jaren || '?'}) terug naar hoe ze waren vlak vóór de import van '${punt.bestandsnaam || 'onbekend bestand'}' van ${tijdTekst(punt.wanneer || punt.wanneer_lokaal)}.\n\n` +
-    `Alles wat sinds die import op déze dagen is gewijzigd, gaat daarmee verloren. Dagen die vóór de import niet bestonden worden verwijderd.\n\n` +
+    wat === 'publicatie' ? 'Publicatie terugdraaien' : 'Import terugdraaien',
+    `Je zet ${punt.aantal_dagen || 0} dagen (${punt.jaren || '?'}) terug naar hoe ze waren vlak vóór de ${wat} van '${punt.bestandsnaam || 'onbekend bestand'}' van ${tijdTekst(punt.wanneer || punt.wanneer_lokaal)}.\n\n` +
+    `Alles wat sinds die ${wat} op déze dagen is gewijzigd, gaat daarmee verloren. Dagen die vóór de ${wat} niet bestonden worden verwijderd.\n\n` +
     `Andere dagen en de rest van de database blijven onaangeroerd.`,
     'Terugdraaien', 'Annuleren'
   );
@@ -1318,7 +1335,10 @@ window.draaiLaatsteImportTerug = async () => {
   } finally {
     zetSchrijfactie(false);
     vergeetLaatstePunt();
-    renderGebView();
+    // v3.36.0: de knop staat ook op het tabblad Indelen; teken het scherm
+    // opnieuw dat nu openstaat (render() kiest zelf; op Beheer is dat
+    // renderGebView, precies als voorheen).
+    if (window.__rooster_render) window.__rooster_render(); else renderGebView();
   }
 };
 

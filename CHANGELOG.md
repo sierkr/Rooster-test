@@ -1,3 +1,98 @@
+## v3.36.0 — Indelen zoals in Excel, met concept
+
+De indeler maakt het rooster in Excel: daar ziet hij een hele periode, typt hij
+codes direct en kopieert hij blokken. In de app ging dat cel voor cel via een
+venster. Nieuw tabblad **Indelen** (alleen rol beheerder, alleen op een scherm
+van minstens 900 pixels breed; smaller zegt het tabblad dat).
+
+**Het raster**
+- Het hele jaar onder elkaar, dezelfde kolommen als het Excel-bestand
+  (stoelen, P, Q, R) en dezelfde hulpkolommen: *Aantal* en de functies die
+  op een dag nog ontbreken, met de datum rood bij een tekort.
+- Typen in de cel; Enter omlaag, Tab rechts, pijltjes, Shift voor een blok,
+  Delete leeg, F2/dubbelklik om aan te vullen, Ctrl+C/Ctrl+V/Ctrl+X (ook van
+  en naar Excel), Ctrl+Z ongedaan maken. Eén waarde op een blok plakken vult
+  het hele blok. "E/M", "E;M" en "E M" worden "E,M".
+- In de cel: wensen (bolletje), vakantieplanning (kleine V), opmerkingen,
+  regelconflicten (rood/oranje omrand, met de gewone regelcontrole van de app
+  op het rooster mét concept). Gearceerd = stoel op die datum niet bezet.
+- Toetsenbord en klembord lopen via een onzichtbaar tekstvak, omdat Safari
+  anders geen plak-gebeurtenis geeft.
+
+**Concept en publiceren** (besluit Sierk, 30 oktober 2026: keuze B)
+- Wat je typt is eerst concept: `indeling_concept/{jaar}`, per cel `nieuw` en
+  `was` (de roosterwaarde toen de cel het concept in ging). Terugtypen van de
+  oude waarde haalt de cel uit het concept. Alleen beheerders mogen het lezen
+  (firestore.rules). Wordt na 0,4 s opgeslagen, dus ook verder op een andere pc.
+- **Publiceren** schrijft alleen de veranderde cellen; de rest van de dag
+  blijft zoals hij in het rooster staat. Een publicatie kan dus nooit een heel
+  jaar leegmaken (anders dan de import, die bewust "Excel = waarheid" is).
+  Vooraf: aantallen, cellen binnen 30 dagen, cellen die iemand anders intussen
+  in het rooster wijzigde (rooster ≠ `was`), en blokkerende regelconflicten.
+- Daarna exact dezelfde weg als de import: nieuw `schrijfDagenWeg()` in
+  import.js (terugdraai-punt, backup in live, wegschrijven met behoud van
+  app-velden, meldingen, wensen). Logboekregel soort `publicatie`.
+- Eén terugdraai-punt, nu van de laatste import óf publicatie (`soort` op het
+  punt). Het terugdraai-blok staat onder de import én onder het raster
+  (`terugdraaiBlokHtml()`), met de juiste woorden per soort.
+- **Concept weggooien** wist het concept van dat jaar (ook dat van andere
+  beheerders); het rooster blijft ongewijzigd. Het concept zit niet in de backup.
+- Zonder verbinding: typen geeft het venster "Geen verbinding", er gaat niets
+  het concept in.
+
+**Eén bron voor kolommen en normen**
+- Nieuw `app/kolommen.js`: `jaarKolommen()` en `functieEisen()` komen letterlijk
+  uit export.js; de export gebruikt ze nu ook. `celTeltVoor()` telt zoals de
+  Excel-formule (bij "E,M" telt alleen de eerste code, net als in Excel).
+
+**Reparatie in de import** (gevonden bij het losknippen)
+- De meldingen voor radiologen ("cel gewijzigd") werden ná het wegschrijven
+  vergeleken met `state.indelingMap`, die op dat moment al de nieuwe inhoud
+  had. Gevolg: nul meldingen, terwijl de bevestiging "Betrokken radiologen
+  krijgen een notificatie" zei. Nu wordt vóór het schrijven vastgelegd wat er
+  stond. Gemeten in de nabootsing (zie hieronder): 3.35.2 schreef 0 meldingen
+  bij 3 gewijzigde cellen binnen 30 dagen, 3.36.0 schrijft er 3. In de echte
+  databank niet gemeten.
+
+**Gemeten** (browserproef in Chromium op een nagebootste Firebase, omdat de
+Firebase-emulator in de cloudsessie niet te downloaden was):
+- Indelen: 66 controles groen (typen, Enter/Tab, blok, Delete, Ctrl+Z, plakken
+  en kopiëren met het echte klembord, hulpkolommen, regelconflict, wens,
+  herladen, publiceren incl. "intussen gewijzigd", meldingen, wensen, logboek,
+  terugdraaien vanaf Indelen, ander jaar, concept weggooien, zonder
+  verbinding, telefoonbreedte, radioloog ziet het tabblad niet). Een fout in de
+  selectie (twee blauwe cellen na hertekenen) gevonden en gerepareerd; de
+  controle daarvoor was eerst rood.
+- Export 2026 en 2027: 3.35.2 en 3.36.0 leveren cel voor cel hetzelfde bestand
+  (waarden, formules, kleuren, opmerkingen, voorwaardelijke opmaak).
+- Import van hetzelfde bestand in 3.35.2 en 3.36.0: rooster, wensen en logboek
+  gelijk; terugdraai-punt gelijk op het nieuwe veld `soort` na; meldingen zie
+  hierboven.
+- Unit-tests: 18 nieuw (concept, kolommen, tellen), 107/107 groen.
+- Niet gemeten: rules-tests (emulator niet te downloaden; draaien op GitHub
+  Actions na de push), Safari en Firefox, een echte iPhone, de backup-vraag in
+  live, de meldingen-server, en twee beheerders tegelijk in één concept.
+
+## v3.35.2 — Hoofdbeheerder mag zich aan een radioloog koppelen
+
+Bij het hoofdbeheerder-account stonden in Beheer › Gebruikers zowel de rol
+als de koppeling aan een radioloog op slot. Gevolg: dat account kon nooit
+een eigen wens indienen ("+ Nieuw" verschijnt alleen bij een koppeling). Het
+slot op de koppeling stond nergens beargumenteerd; een koppeling kan niemand
+buitensluiten. Besluit Sierk (1 oktober 2026): **de rol staat vast, de
+koppeling niet.**
+
+- Het veld "Gekoppeld aan" is voor de hoofdbeheerder gewoon te kiezen
+  (radioloog of "geen") en wordt opgeslagen. Tekst: "🔒 Hoofdbeheerder-account.
+  De rol staat vast."
+- Ongewijzigd: rol vast op beheerder, vergrendelde rechten, niet te
+  verwijderen. Databankregels ongewijzigd (een beheerder mocht dit al).
+
+Gemeten in de oefendatabank met een proefaccount als hoofdbeheerder: op
+v3.35.1 vergrendeld, op v3.35.2 koppelen → radioloog_id gezet, rol bleef
+beheerder, "+ Nieuw" verschijnt; ontkoppelen werkt. Offline-proef,
+vensterproef en 89/89 tests groen. v3.35.1 is alleen naar test gegaan.
+
 ## v3.35.1 — Opnieuw inloggen bleef hangen (zelfde reparatie als v3.34.1)
 
 v3.35.0 met de reparatie uit v3.34.1 erbij (`app/main.js` is gelijk aan die
