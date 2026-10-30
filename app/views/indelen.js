@@ -13,8 +13,10 @@
 // Publiceren gebruikt precies dezelfde schrijfweg als de Excel-import
 // (schrijfDagenWeg in import.js): terugdraai-punt, backup, meldingen, wensen.
 //
-// Alleen voor de rol beheerder (net als de import), en alleen op een breed
-// scherm: op een telefoon is dit niet te doen en zegt het tabblad dat.
+// Alleen voor de rol beheerder (net als de import). Werkt op elk scherm
+// (v3.36.1, besluit Sierk 30 okt): met muis en toetsenbord zoals Excel, met de
+// vinger door te tikken — één tik kiest een cel, nog een tik opent het
+// toetsenbord in de cel, Enter slaat op en gaat door naar de cel eronder.
 import { doc, onSnapshot, deleteField } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { setDoc, deleteDoc, magSchrijven, controleerVerbinding } from '../schrijven.js';
 import { db } from '../firebase-init.js';
@@ -41,7 +43,6 @@ import {
 import { terugdraaiBlokHtml } from './gebruikers.js';
 
 export const CONCEPT_COLLECTIE = 'indeling_concept';
-const MIN_BREEDTE = 900;      // px — daaronder is een raster van een jaar niet te doen
 const OPSLAAN_NA_MS = 400;    // wacht even met opslaan, zodat snel typen één schrijfactie wordt
 
 // ---- Toestand van dit scherm --------------------------------------------------
@@ -75,6 +76,7 @@ const ui = {
   vensterBezig: false,
   eersteKeer: true,
   gekozen: false,        // heeft de gebruiker zelf al een cel gekozen?
+  aanwijzer: null,       // 'mouse' | 'touch' | 'pen' — hoe de laatste tik/klik kwam
 };
 
 function isBeheerder() { return state.profiel?.rol === 'beheerder'; }
@@ -84,8 +86,17 @@ function el(id) { return document.getElementById(id); }
 // gewoon vak (div) krijgt in Safari geen plak-gebeurtenis; een tekstvak in
 // elke browser wel. Zolang dit vak de focus heeft, "luistert" het raster.
 function vangFocus() {
+  if (isAanraken()) return;
   const v = el('ind-vang');
   if (v && document.activeElement !== v) v.focus({ preventScroll: true });
+}
+
+// Werkt de gebruiker met de vinger? Dan geen onzichtbaar tekstvak (dat zou bij
+// elke tik het schermtoetsenbord openen, en Android meldt daar de getypte
+// letters niet betrouwbaar), maar typen in een echt vakje in de cel.
+function isAanraken() {
+  if (ui.aanwijzer) return ui.aanwijzer !== 'mouse';
+  return !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
 }
 
 // ---- Concept: laden, bijwerken, opslaan ---------------------------------------
@@ -242,18 +253,6 @@ export function renderIndView() {
     container.innerHTML = '<div class="empty-state">Indelen is alleen voor beheerders.</div>';
     return;
   }
-  if (window.innerWidth < MIN_BREEDTE) {
-    container.innerHTML = `
-      <div class="card">
-        <p style="margin:0 0 6px; font-weight:500;">Indelen werkt op een laptop of pc</p>
-        <p class="muted" style="margin:0;">Dit scherm toont een heel jaar als een Excel-blad en heeft
-        een breed scherm nodig (minstens ${MIN_BREEDTE} pixels). Losse cellen wijzigen kan op dit
-        toestel gewoon in Overzicht.</p>
-      </div>`;
-    container.dataset.skelet = '';
-    return;
-  }
-
   if (!ui.jaar) ui.jaar = huidigKalenderJaar();
   const jaar = ui.jaar;
 
@@ -313,9 +312,11 @@ function kaderHtml(jaar) {
       </div>
     </div>
     <div class="ind-uitleg muted">
-      Klik een cel en typ een code (<b>E,M</b> = ochtend/middag). <b>Enter</b> omlaag, <b>Tab</b> naar rechts,
+      <span class="ind-uitleg-pc">Klik een cel en typ een code (<b>E,M</b> = ochtend/middag). <b>Enter</b> omlaag, <b>Tab</b> naar rechts,
       pijltjes om te bewegen, <b>Shift</b> om een blok te kiezen. <b>Delete</b> maakt leeg,
-      <b>Ctrl+C / Ctrl+V</b> kopieert en plakt (ook uit Excel), <b>Ctrl+Z</b> maakt ongedaan.
+      <b>Ctrl+C / Ctrl+V</b> kopieert en plakt (ook uit Excel), <b>Ctrl+Z</b> maakt ongedaan.</span>
+      <span class="ind-uitleg-tik">Tik een cel om hem te kiezen, tik nog eens om te typen (<b>E,M</b> = ochtend/middag).
+      <b>Enter</b> slaat op en gaat naar de cel eronder; ergens anders tikken slaat ook op.</span>
       <span class="ind-leg"><span class="ind-leg-concept"></span> concept</span>
       <span class="ind-leg"><span class="ind-leg-fout"></span> regelconflict</span>
       <span class="ind-leg"><span class="wens-marker wens-marker-open" style="position:static;display:inline-block;"></span> wens</span>
@@ -505,7 +506,7 @@ function tekenTabel() {
     return `
       <tr class="${rijKlassen}">
         <td class="ind-dag ind-vast"${dagTitel ? ` title="${esc(dagTitel)}"` : ''}>${DAGEN_NL[dagIdx]}${dagFout.length ? '<span class="ind-dagfout">!</span>' : ''}${live?.opmerking ? '<span class="opm-marker"></span>' : ''}</td>
-        <td class="ind-datum ind-vast2 ${datumKlasse}">${datum.slice(8, 10)}-${datum.slice(5, 7)}-${datum.slice(0, 4)}</td>
+        <td class="ind-datum ind-vast2 ${datumKlasse}">${datum.slice(8, 10)}-${datum.slice(5, 7)}<span class="ind-jj">-${datum.slice(0, 4)}</span></td>
         ${cellen}
         <td class="ind-aantal ind-scheiding ${aantalKlasse}">${h.aantal}</td>
         ${R.eisen.functieLetters.map(l => `<td class="ind-ind ${h.ontbrekend.includes(l) ? 'ind-ontbreekt' : ''}">${h.ontbrekend.includes(l) ? esc(l) : ''}</td>`).join('')}
@@ -545,11 +546,9 @@ function pasHoogteAan() {
   scroll.style.height = hoogte + 'px';
 }
 window.addEventListener('resize', () => {
-  if (state.huidigeView !== 'ind') return;
-  const container = el('view-ind');
-  // Over de breedtegrens heen: opnieuw opbouwen (melding ↔ raster).
-  const smal = window.innerWidth < MIN_BREEDTE;
-  if (container && (smal ? container.dataset.skelet : !container.dataset.skelet)) { planTekenen(); return; }
+  // Niet tijdens het typen: op een telefoon verandert de hoogte als het
+  // schermtoetsenbord opengaat, en dan moet het vak blijven staan.
+  if (state.huidigeView !== 'ind' || ui.bewerken) return;
   pasHoogteAan();
 });
 
@@ -629,7 +628,9 @@ function beweeg(dr, dc, uitbreiden = false) {
 
 // ---- Bewerken in de cel ---------------------------------------------------------
 
-function startBewerken(modus, beginTekst) {
+// opties.aanraken: typen met het schermtoetsenbord (telefoon/iPad).
+// opties.alles: de bestaande tekst geselecteerd, zodat typen hem vervangt.
+function startBewerken(modus, beginTekst, opties = {}) {
   const { r, c } = ui.actief;
   const td = ui.td[r]?.[c];
   if (!td) return;
@@ -645,10 +646,15 @@ function startBewerken(modus, beginTekst) {
   input.value = beginTekst !== undefined ? beginTekst : huidig;
   input.setAttribute('autocomplete', 'off');
   input.setAttribute('spellcheck', 'false');
+  input.setAttribute('autocorrect', 'off');
+  input.setAttribute('autocapitalize', 'characters');
+  input.setAttribute('enterkeyhint', 'next');
   td.appendChild(input);
-  ui.bewerken = { r, c, modus, input };
-  input.focus();
-  input.setSelectionRange(input.value.length, input.value.length);
+  ui.bewerken = { r, c, modus, input, aanraken: !!opties.aanraken };
+  input.focus({ preventScroll: true });
+  if (opties.alles) input.select();
+  else input.setSelectionRange(input.value.length, input.value.length);
+  toonActief();
   input.addEventListener('keydown', invoerToets);
   input.addEventListener('blur', () => { if (ui.bewerken && ui.bewerken.input === input) stopBewerken(true); });
 }
@@ -661,13 +667,52 @@ function stopBewerken(opslaan) {
   if (b.input.parentNode) b.input.parentNode.removeChild(b.input);
   vangFocus();
   if (opslaan) pasToe([{ r: b.r, c: b.c, tekst: waarde }]);
+  werkCelBij(b.r, b.c);
   if (ui.uitgesteld) { ui.uitgesteld = false; planTekenen(); }
+}
+
+// Met de vinger: Enter slaat op en opent meteen de cel eronder, zodat het
+// schermtoetsenbord open blijft en je een kolom kunt doortypen. Het nieuwe
+// vakje krijgt de focus vóórdat het oude verdwijnt; anders klapt het
+// toetsenbord dicht. De hele tabel wordt pas opnieuw getekend als je stopt;
+// tot dan wordt alleen de net ingevulde cel bijgewerkt.
+function doorNaarVolgende(dr, dc) {
+  const oud = ui.bewerken;
+  ui.bewerken = null;
+  const waarde = oud.input.value;
+  zet(oud.r + dr, oud.c + dc);
+  startBewerken('wijzig', undefined, { aanraken: true, alles: true });
+  if (oud.input.parentNode) oud.input.parentNode.removeChild(oud.input);
+  pasToe([{ r: oud.r, c: oud.c, tekst: waarde }]);
+  werkCelBij(oud.r, oud.c);
+}
+
+// Werkt één cel bij zonder de tabel opnieuw te tekenen (tekst, kleur, concept).
+function werkCelBij(r, c) {
+  const td = ui.td[r]?.[c];
+  const kol = ui.kolommen[c];
+  if (!td || !kol) return;
+  const datum = ui.datums[r];
+  const tekst = zichtbareTekst(ui.concept, state.indelingMap, datum, kol.id);
+  const tekstKnoop = [...td.childNodes].find(n => n.nodeType === 3);
+  if (tekstKnoop) tekstKnoop.textContent = tekst;
+  else td.insertBefore(document.createTextNode(tekst), td.firstChild);
+  [...td.classList].filter(k => /^f-/.test(k) || k === 'ind-leeg').forEach(k => td.classList.remove(k));
+  if (!kol.extra) td.classList.add(tekst ? fclass(tekst.split(',')[0]) : 'ind-leeg');
+  td.classList.toggle('ind-concept', !!ui.concept[celSleutel(datum, kol.id)]);
 }
 
 function invoerToets(ev) {
   const b = ui.bewerken;
   if (!b) return;
   const k = ev.key;
+  if (b.aanraken && k === 'Enter') {
+    ev.preventDefault(); ev.stopPropagation();
+    const volgende = Math.min(b.r + (ev.shiftKey ? -1 : 1), ui.datums.length - 1);
+    if (volgende === b.r) { stopBewerken(true); return; } // laatste dag van het jaar
+    doorNaarVolgende(ev.shiftKey ? -1 : 1, 0);
+    return;
+  }
   const afsluiten = (dr, dc) => { ev.preventDefault(); ev.stopPropagation(); stopBewerken(true); beweeg(dr, dc); };
   if (k === 'Enter') return afsluiten(ev.shiftKey ? -1 : 1, 0);
   if (k === 'Tab') return afsluiten(0, ev.shiftKey ? -1 : 1);
@@ -738,7 +783,11 @@ function koppelRaster() {
   vang.addEventListener('copy', bijKopieren);
   vang.addEventListener('cut', bijKnippen);
   vang.addEventListener('paste', bijPlakken);
+  // Hoe kwam de tik of klik? pointerdown komt altijd vóór de (nagebootste)
+  // muisgebeurtenissen, dus daarmee onderscheiden we vinger en muis.
+  scroll.addEventListener('pointerdown', (ev) => { ui.aanwijzer = ev.pointerType || 'mouse'; });
   scroll.addEventListener('mousedown', (ev) => {
+    if (ui.aanwijzer !== 'mouse') return; // vinger: zie 'click' hieronder
     if (ev.button !== 0) return;
     if (ev.target.classList && ev.target.classList.contains('ind-invoer')) return;
     const p = celVan(ev.target);
@@ -758,10 +807,27 @@ function koppelRaster() {
     }
   });
   scroll.addEventListener('dblclick', (ev) => {
+    if (ui.aanwijzer !== 'mouse') return;
     const p = celVan(ev.target);
     if (!p) return;
     zet(p.r, p.c);
     startBewerken('wijzig');
+  });
+  // Vinger: eerste tik kiest de cel, tweede tik op dezelfde cel opent het
+  // toetsenbord. (Schuiven met de vinger geeft geen tik, dus dat blijft vrij.)
+  scroll.addEventListener('click', (ev) => {
+    if (ui.aanwijzer === 'mouse') return;
+    if (ev.target.classList && ev.target.classList.contains('ind-invoer')) return;
+    const p = celVan(ev.target);
+    if (!p) return;
+    if (ui.bewerken) {
+      if (ui.bewerken.r === p.r && ui.bewerken.c === p.c) return;
+      stopBewerken(true);
+    }
+    const s = _selectie();
+    const alGekozen = p.r === ui.actief.r && p.c === ui.actief.c && s.r1 === s.r2 && s.c1 === s.c2 && ui.gekozen;
+    if (alGekozen) startBewerken('wijzig', undefined, { aanraken: true, alles: true });
+    else zet(p.r, p.c);
   });
 }
 document.addEventListener('mouseup', () => { ui.slepen = false; });

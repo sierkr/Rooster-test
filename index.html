@@ -108,14 +108,14 @@
   .ind-jaar { display: flex; align-items: center; gap: 6px; }
   .ind-jaartal { font-size: 18px; font-weight: 600; min-width: 52px; text-align: center; }
   .ind-status { flex: 1; font-size: 13px; color: #5f5e5a; min-width: 200px; }
-  .ind-knoppen { display: flex; gap: 8px; }
+  .ind-knoppen { display: flex; gap: 8px; flex-wrap: wrap; }
   .ind-knoppen .btn { padding: 8px 12px; font-size: 13px; }
   .ind-knoppen .btn:disabled { opacity: 0.45; cursor: default; }
   .ind-uitleg { font-size: 12px; margin-bottom: 8px; line-height: 1.6; }
   .ind-leg { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; white-space: nowrap; }
   .ind-leg-concept { display: inline-block; width: 14px; height: 10px; border-bottom: 3px solid #7f56d9; background: #f3effc; }
   .ind-leg-fout { display: inline-block; width: 14px; height: 10px; box-shadow: inset 0 0 0 2px #c0392b; }
-  .ind-scroll { overflow: auto; background: #fff; border: 0.5px solid rgba(0,0,0,0.15); border-radius: 8px; outline: none; position: relative; }
+  .ind-scroll { overflow: auto; background: #fff; border: 0.5px solid rgba(0,0,0,0.15); border-radius: 8px; outline: none; position: relative; -webkit-overflow-scrolling: touch; touch-action: manipulation; }
   .ind-vang { position: fixed; left: -10000px; top: 0; width: 1px; height: 1px; opacity: 0; }
   .ind-tabel { border-collapse: separate; border-spacing: 0; font-size: 12px; user-select: none; -webkit-user-select: none; }
   .ind-tabel th { position: sticky; top: 0; z-index: 3; background: #1f3863; color: #fff; font-weight: 600; padding: 4px 6px; font-size: 11px; white-space: nowrap; border-right: 1px solid rgba(255,255,255,0.15); }
@@ -142,7 +142,24 @@
   .ind-cel.ind-actief { outline: 2px solid #1a73e8; outline-offset: -2px; z-index: 1; }
   .ind-cel .wens-marker { top: 2px; right: 2px; width: 6px; height: 6px; }
   .ind-vak { position: absolute; left: 2px; bottom: 0; font-size: 8px; line-height: 1; color: #1e7a52; font-weight: 700; font-style: normal; }
-  .ind-invoer { position: absolute; inset: 0; width: 100%; height: 100%; border: 2px solid #1a73e8; padding: 0 3px; font: inherit; font-weight: 600; text-align: center; background: #fff; color: #1a1a18; outline: none; z-index: 2; box-sizing: border-box; }
+  .ind-invoer { position: absolute; inset: 0; width: 100%; height: 100%; border: 2px solid #1a73e8; padding: 0 2px; font-family: inherit; font-size: 16px; font-weight: 600; text-align: center; background: #fff; color: #1a1a18; outline: none; z-index: 2; box-sizing: border-box; border-radius: 0; -webkit-appearance: none; appearance: none; }
+  /* v3.36.1: uitleg voor muis of vinger; met de vinger ook een gewone wijzer, anders geeft iOS geen tik door */
+  .ind-uitleg-tik { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    .ind-uitleg-pc { display: none; }
+    .ind-uitleg-tik { display: inline; }
+    .ind-cel { cursor: pointer; }
+  }
+  /* v3.36.1: smal scherm (telefoon staand) */
+  @media (max-width: 600px) {
+    .ind-balk { gap: 8px; }
+    .ind-status { min-width: 0; flex-basis: 100%; order: 3; }
+    .ind-knoppen { width: 100%; }
+    .ind-knoppen .btn { flex: 1; padding: 8px 6px; font-size: 12px; }
+    .ind-jj { display: none; }
+    .ind-tabel .ind-vast2 { min-width: 44px; }
+    .ind-tabel td { min-width: 34px; }
+  }
   .ind-aantal { font-weight: 700; }
   .ind-tekort { background: #ffc7ce !important; color: #9c0006 !important; font-weight: 700; }
   .ind-genoeg { background: #c6efce; color: #276221; }

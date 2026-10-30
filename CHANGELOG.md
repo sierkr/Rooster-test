@@ -1,3 +1,42 @@
+## v3.36.1 — Indelen ook op telefoon en iPad
+
+In 3.36.0 werkte Indelen alleen op een scherm van minstens 900 pixels; smaller
+stond er een melding. Dat was een eigen keuze in het plan, niet die van Sierk.
+Besluit Sierk (30 oktober 2026): **Indelen werkt op elk scherm.**
+
+- De breedtegrens en de melding zijn weg.
+- Met de vinger: één tik kiest een cel, nog een tik op dezelfde cel opent een
+  typvak in de cel (met het schermtoetsenbord). **Enter** slaat op en opent
+  meteen de cel eronder — het nieuwe vakje krijgt de focus vóórdat het oude
+  verdwijnt, zodat het toetsenbord open blijft en je een kolom kunt
+  doortypen. Ergens anders tikken (ook op Publiceren) slaat eerst op. Tijdens
+  dat doortypen wordt alleen de ingevulde cel bijgewerkt; de hele tabel
+  (Aantal, regelcontrole) zodra je stopt.
+- Muis of vinger wordt per tik bepaald (`pointerdown`), daarvóór aan de hand
+  van het scherm (`hover: none` en `pointer: coarse`). Met de vinger wordt het
+  onzichtbare tekstvak niet gebruikt: dat zou bij elke tik het toetsenbord
+  openen, en Android meldt daar de letters niet betrouwbaar.
+- Typvak: letter 16px (anders zoomt een iPhone in), hoofdletters standaard,
+  geen autocorrectie, Enter-toets "volgende".
+- Smal scherm (≤ 600px): knoppen op een eigen regel, datum zonder jaartal
+  (dat staat bovenaan), smallere kolommen; uitleg voor de vinger in plaats
+  van de toetsen. Het raster schuift met de vinger; de pagina zelf niet
+  zijwaarts.
+- Blokken kiezen en plakken blijft iets voor een toetsenbord (ook iPad met
+  toetsenbord). Muis en toetsenbord werken precies als in 3.36.0.
+
+3.36.0 stond op 30 oktober 2026 om 19:48 in de testomgeving (gemeten aan de
+commit "3.36.0 naar TESTOMGEVING"); live had 3.34.1.
+
+Gemeten (browserproef, Chromium, nagebootste Firebase): 77 controles groen,
+waarvan 12 nieuw met een nagebootste telefoon (390 breed, aanraken): raster in
+beeld, pagina schuift niet zijwaarts, tik/tik/typen, Enter = volgende cel met
+focus, doortypen van een kolom, tik elders slaat op, tabel daarna bijgewerkt,
+Publiceren slaat de open cel eerst op. Unit-tests 107/107.
+Niet gemeten: een echte iPhone en Android-telefoon (het schermtoetsenbord van
+Safari en Android is niet na te bootsen), Safari en Firefox op de pc, en de
+uitslag van de tests op GitHub (niet in te zien vanuit deze sessie).
+
 ## v3.36.0 — Indelen zoals in Excel, met concept
 
 De indeler maakt het rooster in Excel: daar ziet hij een hele periode, typt hij
